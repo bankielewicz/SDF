@@ -1,14 +1,14 @@
 # The shape of a test for one criterion
 
-Read this at step 7.1, before `ac-test-writer` is invoked for a criterion. One `AC-nnn` produces one failing test. This file says how the criterion's three clauses become the three parts of that test, and what makes a `Then` clause readable enough to assert.
+Read this at step 7.1, before `ac-test-writer` is invoked for a criterion. One `AC-nnn` produces one failing test case. This file says how the criterion's three clauses become the three parts of that test case, and what makes a `Then` clause readable enough to assert.
 
-The test is written into a path the story's `## Files` table declares with `Kind` `test`. The rules the file follows — naming, layout, where a case goes — come from `coding-standards.md` `## Testing standards` and `source-tree.md` `## Naming conventions`, which the prompt carries. Nothing here names a runner, an assertion library, or a file extension.
+The test case is written into a path the story's `## Files` table declares with `Kind` `test`, and the cases of several criteria may land in one declared file. The rules the file follows — naming, layout, where a case goes — come from `coding-standards.md` `## Testing standards` and `source-tree.md` `## Naming conventions`, which the prompt carries. Nothing here names a runner, an assertion library, or a file extension.
 
 ## Three clauses, three parts
 
 A criterion reads `Given <state> When <action> Then <outcome>`. The test has the same three parts in the same order, separated so a reader can point at each.
 
-**Arrange, from `Given`.** Build the state the clause names and nothing beyond it. A value the clause does not name is either absent or set to the simplest value that lets the action run, and that choice is visible in the test rather than hidden behind a helper. State the criterion shares with a sibling criterion is built by each test for itself, so one test's outcome does not depend on another's having run.
+**Arrange, from `Given`.** Build the state the clause names and nothing beyond it. A value the clause does not name is either absent or set to the simplest value that lets the action run, and that choice is visible in the test rather than hidden behind a helper. State the criterion shares with a sibling criterion is built by each test case for itself, so one case's outcome does not depend on another's having run.
 
 **Act, from `When`.** One call. The clause names one action, so the test performs one and holds its result. A second call before the assertion is either part of the arrangement, in which case it belongs above, or a second criterion, in which case it belongs in its own test.
 

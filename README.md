@@ -2,6 +2,13 @@
 
 DevForgeAI is a Claude Code framework that runs software delivery as seven phases, each one skill that is its own slash command and writes one typed document the next phase reads. Judgment lives in the skills; enforcement lives in Claude Code hooks, git hooks, and the `devforgeai` Rust CLI, so a phase advances when the CLI says its gate passed and not because a model said so. It installs into any language project, greenfield or brownfield, and reads the language, test runner, and build tool from `.devforgeai/config.toml` rather than naming them anywhere in the skills.
 
+## Using the framework
+
+This README is a maintainer document: it describes the repository, the install mechanics, and the eval runner. If you are using DevForgeAI from the Claude Code terminal in your own project, start with the user guide instead.
+
+- **[docs/USER-GUIDE.md](docs/USER-GUIDE.md)** — prerequisites, install with the trust pin, the pipeline and its ids, a complete worked example from a fresh project through a first release, gates, what each hook prints when it blocks, brownfield install, trust, customising `gates.toml` and `config.toml` within the compiled floors, troubleshooting by error code, and a reference table for every subcommand.
+- **[docs/examples/](docs/examples/)** — one transcript-style walkthrough per command, with the real files, gate output and handoff blocks: [explore](docs/examples/explore.md), [discover](docs/examples/discover.md), [constitute](docs/examples/constitute.md), [plan](docs/examples/plan.md), [build](docs/examples/build.md), [verify](docs/examples/verify.md), [release](docs/examples/release.md), and the two cross-cutting commands [design](docs/examples/design.md) and [reflect](docs/examples/reflect.md).
+
 ## Layout
 
 ```

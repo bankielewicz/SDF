@@ -427,9 +427,12 @@ class RunnerTestCase(unittest.TestCase):
         import glob
         root = run_jsonl.framework_root()
         # The phases whose `## Documents` table names six or more files, plus
-        # Plan, which measured 850s of the 900s default on PLAN-01.
+        # the two that measured past the 900s default: Plan at 850s on PLAN-01,
+        # and Build, which times out running a three-criterion TDD loop with two
+        # subagents per criterion and the lint, coverage and complexity commands.
         for skill in ("establishing-context", "designing-interfaces",
-                      "exploring-ideas", "releasing-software", "planning-work"):
+                      "exploring-ideas", "releasing-software", "planning-work",
+                      "implementing-stories"):
             path = os.path.join(root, "skills", skill, "evals", "cases.jsonl")
             if not os.path.isfile(path):
                 self.skipTest("%s is not in this tree" % skill)
@@ -478,13 +481,13 @@ class RunnerTestCase(unittest.TestCase):
     def test_read_stream_keeps_a_plain_string_user_turn(self):
         """A refused preamble arrives as `message.content` being a bare string.
 
-        Claude Code emits one when it refuses a `!` injection — measured:
-        a preamble carrying `$1` is refused with "Shell command permission check
+Claude Code emits one when it refuses a `!` injection — measured:
+a preamble carrying `$1` is refused with "Shell command permission check
         failed ... Contains simple_expansion", and the refusal reaches the
-        transcript as `<local-command-stderr>...`. The reader used to call
-        `.get` on it and the whole run died with AttributeError, so the case
-        that would have shown the refusal recorded a runner crash instead.
-        """
+transcript as `<local-command-stderr>...`. The reader used to call
+`.get` on it and the whole run died with AttributeError, so the case
+that would have shown the refusal recorded a runner crash instead.
+"""
         stdout = "\n".join([
             json.dumps({"type": "user", "message": {"content":
                 "<local-command-stderr>Shell command permission check failed for "
@@ -917,11 +920,11 @@ class RunnerTestCase(unittest.TestCase):
     def test_gates_default_fixtures_are_byte_copies_of_the_cli_template(self):
         """Every `gates-default.toml` fixture is the template, byte for byte.
 
-        These five started as output from a stale release binary and drifted:
-        `path = "accepted_by"` for `field`, and three `verifiers.*` metrics
-        without the `.payload.` segment the one-envelope contract added. A copy
-        that is not the template is a copy that can drift again.
-        """
+These five started as output from a stale release binary and drifted:
+`path = "accepted_by"` for `field`, and three `verifiers.*` metrics
+without the `.payload.` segment the one-envelope contract added. A copy
+that is not the template is a copy that can drift again.
+"""
         root = run_jsonl.framework_root()
         template = os.path.join(root, "cli", "templates", "gates.default.toml")
         if not os.path.isfile(template):
@@ -957,13 +960,13 @@ class RunnerTestCase(unittest.TestCase):
     def test_every_fixture_is_referenced_by_a_case_grader_or_digest(self):
         """No fixture is dead weight, and no digest names a file that has gone.
 
-        `wt-story-014-git.txt` outlived the BLD-07 rewrite, which moved the
-        seeded overlap from a hand-written `.git` file to a real
-        `setup.git.worktrees` entry. `digests.txt` is the one file that is
-        documentation rather than a fixture: it records the recipe and the
-        pinned values, so it is exempt from needing a referrer and is instead
-        required to name only files that exist.
-        """
+`wt-story-014-git.txt` outlived the BLD-07 rewrite, which moved the
+seeded overlap from a hand-written `.git` file to a real
+`setup.git.worktrees` entry. `digests.txt` is the one file that is
+documentation rather than a fixture: it records the recipe and the
+pinned values, so it is exempt from needing a referrer and is instead
+required to name only files that exist.
+"""
         import glob
         root = run_jsonl.framework_root()
         skills = sorted(glob.glob(os.path.join(root, "skills", "*", "evals")))
@@ -984,11 +987,11 @@ class RunnerTestCase(unittest.TestCase):
     def test_every_public_grader_is_named_by_a_case(self):
         """No grader is defined and nameless (AUDIT-5 EVL-043).
 
-        A grader nothing calls is either dead weight or the tell that a case was
-        dropped — `design_called` was the only check on the Plan-to-Design
-        hand-off and no case named it. Helpers carry a leading underscore, which
-        is what separates them from graders here.
-        """
+A grader nothing calls is either dead weight or the tell that a case was
+dropped — `design_called` was the only check on the Plan-to-Design
+hand-off and no case named it. Helpers carry a leading underscore, which
+is what separates them from graders here.
+"""
         import glob
         import importlib.util
         root = run_jsonl.framework_root()
@@ -1022,11 +1025,11 @@ class RunnerTestCase(unittest.TestCase):
     def test_every_skill_meets_the_send_back_floor_or_documents_why(self):
         """Conventions section 9 wants two SEND BACK cases per skill.
 
-        Explore and Reflect can have none — each `## Send-back` says so in
-        terms: Explore is phase 0 with no upstream document to cite, and a
-        Reflect `REC-nnn` is prose rather than a gate result. Both carry a
-        documented stop-path case instead, which is what this asserts.
-        """
+Explore and Reflect can have none — each `## Send-back` says so in
+terms: Explore is phase 0 with no upstream document to cite, and a
+Reflect `REC-nnn` is prose rather than a gate result. Both carry a
+documented stop-path case instead, which is what this asserts.
+"""
         import glob
         root = run_jsonl.framework_root()
         paths = sorted(glob.glob(os.path.join(root, "skills", "*", "evals",
@@ -1149,6 +1152,115 @@ class RunnerTestCase(unittest.TestCase):
     def test_owned_agents_reads_agents_md_headings(self):
         self.assertEqual(run_jsonl.owned_agents(self.skill, self.root),
                          ["flow-drafter"])
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class TamperMessageOnNonGradedPaths(unittest.TestCase):
+    """A guarded-file change after a timeout, limit or error must not crash.
+
+    The grader's `status` and `evidence` locals do not exist on those paths, and
+    a real hooks-on run died with UnboundLocalError reaching for them. The fix
+    reads them back from the record; this exercises that rather than inspecting
+    the source, so a later rewrite reintroducing the bug fails here too.
+    """
+
+    def test_a_timed_out_run_that_changed_a_guarded_file_reports_both(self):
+        root = tempfile.mkdtemp(prefix="dfa-tamper-")
+        self.addCleanup(shutil.rmtree, root, True)
+        skill = os.path.join(root, "skills", "exploring-ideas")
+        write(os.path.join(skill, "SKILL.md"), "---\nname: explore\n---\n")
+        write(os.path.join(skill, "evals", "graders.py"), GRADERS)
+        write(os.path.join(skill, "evals", "cases.jsonl"), json.dumps(
+            {"id": "t1", "prompt": "p",
+             "setup": {"files": {".devforgeai/gates.toml": "seeded\n"}},
+             "expect": {"grader": "ok_grader", "args": {}}}) + "\n")
+        write(os.path.join(root, "hooks", "settings.hooks.json"), "{}")
+        binary = os.path.join(root, "bin", "devforgeai")
+        write(binary, "stand-in\n")
+        workdir = os.path.join(root, "work")
+        os.makedirs(workdir)
+
+        real = run_jsonl.invoke
+
+        def times_out(argv, workspace, home, timeout, prompt, options,
+                      log_dir, case_id):
+            # What a model would do, on the one path where no grader runs.
+            write(os.path.join(workspace, ".devforgeai", "gates.toml"),
+                  "rewritten\n")
+            return "timeout", "", None, {}
+
+        run_jsonl.invoke = times_out
+        self.addCleanup(setattr, run_jsonl, "invoke", real)
+        out = os.path.join(root, "results.jsonl")
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = run_jsonl.main(["--skill", skill, "--workdir", workdir,
+                                   "--framework-root", root, "--out", out,
+                                   "--devforgeai-bin", binary, "--no-hooks"])
+        self.assertEqual(code, 2)
+        line = read_lines(out)[-1]
+        self.assertEqual(line["status"], "tampered")
+        self.assertIn(".devforgeai/gates.toml", line["tampered"])
+        # The prior status and its evidence survive into the message.
+        self.assertIn("grader said timeout", line["evidence"])
+        self.assertIn("no result within", line["evidence"])
+
+
+class ConfigFingerprintTestCase(unittest.TestCase):
+    """`config.toml` is compared by content, not bytes.
+
+    The SessionStart hook runs `stack detect`, which rewrites the file on every
+    hooks-on run and stamps a fresh `generated_at`. That is the harness working.
+    A changed command or threshold in the same file is not.
+    """
+
+    BASE = ('schema = "devforgeai/config/1"\n'
+            'generated_at = "2026-09-10T09:00:00Z"\n'
+            'cli_version = "1.0.0"\n'
+            "degraded = false\n"
+            "\n"
+            "[[stack]]\n"
+            'id = "primary"\n'
+            'source = "manual"\n'
+            'test_command = "sh ci/test"\n'
+            "timeout_secs = 900\n")
+
+    def test_a_new_timestamp_alone_is_not_tampering(self):
+        restamped = self.BASE.replace("2026-09-10T09:00:00Z",
+                                      "2026-09-11T18:00:00Z")
+        self.assertNotEqual(self.BASE, restamped)
+        self.assertEqual(run_jsonl.config_fingerprint(self.BASE),
+                         run_jsonl.config_fingerprint(restamped))
+
+    def test_a_changed_test_command_is_tampering(self):
+        edited = self.BASE.replace("sh ci/test", "echo always-green")
+        self.assertNotEqual(run_jsonl.config_fingerprint(self.BASE),
+                            run_jsonl.config_fingerprint(edited))
+
+    def test_a_changed_threshold_is_tampering(self):
+        edited = self.BASE.replace("timeout_secs = 900", "timeout_secs = 1")
+        self.assertNotEqual(run_jsonl.config_fingerprint(self.BASE),
+                            run_jsonl.config_fingerprint(edited))
+
+    def test_the_guard_uses_the_fingerprint_for_config_alone(self):
+        parent = tempfile.mkdtemp(prefix="dfa-fp-")
+        self.addCleanup(shutil.rmtree, parent, True)
+        workspace = os.path.join(parent, "ws")
+        write(os.path.join(workspace, ".devforgeai", "config.toml"), self.BASE)
+        write(os.path.join(workspace, ".devforgeai", "gates.toml"), "gates\n")
+        before = run_jsonl.guard_digests(workspace)
+        write(os.path.join(workspace, ".devforgeai", "config.toml"),
+              self.BASE.replace("2026-09-10T09:00:00Z", "2026-09-11T18:00:00Z"))
+        self.assertEqual(
+            run_jsonl.tampering(before, run_jsonl.guard_digests(workspace)), "")
+        write(os.path.join(workspace, ".devforgeai", "config.toml"),
+              self.BASE.replace("sh ci/test", "echo always-green"))
+        self.assertIn(
+            ".devforgeai/config.toml",
+            run_jsonl.tampering(before, run_jsonl.guard_digests(workspace)))
 
 
 if __name__ == "__main__":

@@ -120,6 +120,10 @@ fn parent(path: &str) -> String {
 fn build(id: &str, root: &Path, markers: Vec<String>) -> Stack {
     let mut s = Stack {
         id: id.to_string(),
+        // Everything this function builds is the detector's own, so a later
+        // rerun may replace it. A human's entry is never marked this way and
+        // is never overwritten.
+        source: crate::config::STACK_DETECTED.to_string(),
         markers,
         timeout_secs: 900,
         ..Stack::default()

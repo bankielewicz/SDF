@@ -26,6 +26,10 @@ impl Project {
             degraded: false,
             stack: vec![devforgeai::config::Stack {
                 id: "rust".into(),
+                // What `init` leaves behind: `init` runs `stack detect`, and
+                // every entry detection writes is its own to refresh. A
+                // hand-written entry carries `manual` and is never replaced.
+                source: devforgeai::config::STACK_DETECTED.into(),
                 markers: vec!["Cargo.toml".into()],
                 package_manager: "cargo".into(),
                 source_roots: vec!["src".into()],

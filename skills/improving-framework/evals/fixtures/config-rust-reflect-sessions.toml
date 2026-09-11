@@ -8,7 +8,11 @@ degraded = false
 # DFA-E311 there and works from bash, which is how it passed a manual
 # check and failed a real run. `sh ci/test` runs the same script on
 # both platforms.
+# `source = "manual"` so the SessionStart `stack detect` leaves this
+# entry alone: a detected rewrite would change the commands the gate
+# spawns out from under the case.
 [[stack]]
+source = "manual"
 id = "primary"
 markers = ["project.manifest"]
 package_manager = ""

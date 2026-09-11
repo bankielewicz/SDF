@@ -1434,25 +1434,99 @@ fn stop_trust_failure_blocks_with_pin_command() {
 }
 
 #[test]
-fn stop_trust_failure_with_active_flag_exits_zero() {
+fn stop_trust_failure_spends_the_same_budget_as_a_gate_failure() {
     let _home = TrustHome::empty();
     let p = Project::new();
 
-    // The continuation cannot repair a pin, so it ends holding the refusal
-    // rather than looping against it.
-    let out = dispatch(
-        &p,
-        "stop",
-        &serde_json::json!({ "stop_hook_active": true, "session_id": "s1" }),
+    // Nothing a continuation can do repairs a pin, so a trust failure that
+    // arrives mid-run must not block every Stop until the harness's own
+    // eight-block cap ends the session with nothing shown.
+    let mut exits = Vec::new();
+    for _ in 0..5 {
+        let out = dispatch(
+            &p,
+            "stop",
+            &serde_json::json!({ "stop_hook_active": false, "session_id": "s1" }),
+        );
+        exits.push(exit_of(&out));
+    }
+    assert_eq!(
+        exits,
+        vec![2, 2, 2, 0, 0],
+        "three blocks, then the turn ends"
     );
 
-    assert_eq!(exit_of(&out), 0);
-    let v = hook_json(&out);
-    assert!(v.get("decision").is_none(), "no second block");
+    let last = dispatch(
+        &p,
+        "stop",
+        &serde_json::json!({ "stop_hook_active": false, "session_id": "s1" }),
+    );
+    let v = hook_json(&last);
+    assert!(v.get("decision").is_none(), "no fourth block");
     assert!(v["systemMessage"]
         .as_str()
         .expect("systemMessage")
         .contains("TRUST FAIL"));
+}
+
+#[test]
+fn stop_gate_and_trust_blocks_draw_on_one_budget() {
+    let p = failing_explore("IDEA-003");
+
+    // One gate block against a valid pin.
+    {
+        let _home = TrustHome::pinned();
+        let out = dispatch(
+            &p,
+            "stop",
+            &serde_json::json!({ "stop_hook_active": false, "session_id": "s1" }),
+        );
+        assert_eq!(exit_of(&out), 2, "the gate fails");
+    }
+    assert_eq!(p.state().stop_hook.block_count, 1);
+
+    // Then the pin breaks mid-session, which is what happens when the
+    // framework's own sources are edited while a session is open. There is one
+    // turn to hold open, so there is one counter: two blocks left, not three.
+    let _home = TrustHome::empty();
+    let mut exits = Vec::new();
+    for _ in 0..4 {
+        let out = dispatch(
+            &p,
+            "stop",
+            &serde_json::json!({ "stop_hook_active": false, "session_id": "s1" }),
+        );
+        exits.push(exit_of(&out));
+    }
+    assert_eq!(
+        exits,
+        vec![2, 2, 0, 0],
+        "at most three blocks in the session, whichever branch spent them"
+    );
+    assert_eq!(p.state().stop_hook.block_count, 3);
+}
+
+#[test]
+fn stop_trust_failure_budget_restarts_in_a_new_session() {
+    let _home = TrustHome::empty();
+    let p = Project::new();
+
+    for _ in 0..4 {
+        dispatch(
+            &p,
+            "stop",
+            &serde_json::json!({ "stop_hook_active": false, "session_id": "s1" }),
+        );
+    }
+    // A new session is a new turn to hold open, and the pin may have been
+    // repaired between the two.
+    let fresh = dispatch(
+        &p,
+        "stop",
+        &serde_json::json!({ "stop_hook_active": false, "session_id": "s2" }),
+    );
+    assert_eq!(exit_of(&fresh), 2);
+    assert_eq!(p.state().stop_hook.block_count, 1);
 }
 
 #[test]

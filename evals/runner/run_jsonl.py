@@ -90,9 +90,12 @@ Tampering (EVL-004). ``bypassPermissions`` means a model in an eval can rewrite
 the files that decide whether it passed. ``gates.toml``, ``config.toml``,
 ``state.toml`` and the workspace ``settings.json`` are hashed before the run and
 after it; any change marks the case ``status: tampered`` with the path,
-whatever the grader returned. ``state.toml`` is exempt from the equality check
-because ``phase set`` rewrites it by design, and is reported only if it was
-deleted. No grader reads these files today, so tampering buys nothing — but that
+whatever the grader returned. Two of the four carry an exemption, each for a
+rewrite the framework itself performs: ``state.toml`` is rewritten by every
+``phase set`` and is reported only when it was deleted, and ``config.toml`` is
+compared by content with ``generated_at`` removed, because the SessionStart
+hook runs ``stack detect`` on every hooks-on run. A changed ``[[stack]]``
+command or coverage floor is still tampering. No grader reads these files today, so tampering buys nothing — but that
 is a property of the current graders, not of the harness, and this makes it one.
 
 Preamble refusals reach the transcript as a plain string. Claude Code refuses a
@@ -645,16 +648,61 @@ GUARDED = (".devforgeai/gates.toml",
            ".claude/settings.json")
 
 
+
+# `config.toml` is compared by content rather than by bytes. The framework's
+# SessionStart hook runs `stack detect`, which rewrites the file on every
+# hooks-on run and stamps a fresh `generated_at`; that is the harness working,
+# not a model editing the gate's inputs. Everything else in the file — a
+# `[[stack]]` command, a coverage floor, a verifier entry — still counts.
+VOLATILE_CONFIG_KEYS = ("generated_at",)
+
+
+def config_fingerprint(text):
+    """A digest of ``config.toml`` that ignores only its timestamp.
+
+    Parsed where the standard library can (``tomllib``, 3.11+), and otherwise by
+    dropping the volatile top-level keys from the text. The fallback is exact
+    for the case it exists for: `stack detect` re-serialises the same values the
+    same way, so a no-op rewrite differs in the stamp alone.
+    """
+    try:
+        import tomllib
+    except ImportError:
+        kept = [line for line in text.splitlines()
+                if not any(line.lstrip().startswith(key + " ")
+                           or line.lstrip().startswith(key + "=")
+                           for key in VOLATILE_CONFIG_KEYS)]
+        body = "\n".join(line.rstrip() for line in kept if line.strip())
+        return hashlib.sha256(body.encode("utf-8")).hexdigest()
+    try:
+        parsed = tomllib.loads(text)
+    except (ValueError, TypeError):
+        # An unparsable config is itself a change worth reporting, so fall back
+        # to the bytes rather than treating every broken file as equal.
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
+    for key in VOLATILE_CONFIG_KEYS:
+        parsed.pop(key, None)
+    canonical = json.dumps(parsed, sort_keys=True, separators=(",", ":"),
+                           default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def guard_digests(workspace):
-    """SHA-256 of each guarded path, or ``None`` where the file is absent."""
+    """A digest of each guarded path, or ``None`` where the file is absent."""
     out = {}
     for relative in GUARDED:
         path = os.path.join(workspace, *relative.split("/"))
         try:
             with open(path, "rb") as handle:
-                out[relative] = hashlib.sha256(handle.read()).hexdigest()
+                raw = handle.read()
         except OSError:
             out[relative] = None
+            continue
+        if relative == ".devforgeai/config.toml":
+            out[relative] = config_fingerprint(
+                raw.decode("utf-8", errors="replace"))
+        else:
+            out[relative] = hashlib.sha256(raw).hexdigest()
     return out
 
 
@@ -996,11 +1044,12 @@ def run_case(case, files, options, module, run_id, skill_name):
         # gate turns on has not earned whatever the grader said.
         changed = tampering(before, guard_digests(workspace))
         if changed:
+            prior_status, prior_evidence = record["status"], record["evidence"]
             record["tampered"] = changed
             record["status"] = "tampered"
             record["evidence"] = (
                 "the run changed a guarded file: %s (grader said %s: %s)"
-                % (changed, status, str(evidence)[:200]))
+                % (changed, prior_status, str(prior_evidence)[:200]))
     except CaseError as exc:
         record["evidence"] = str(exc)
     finally:

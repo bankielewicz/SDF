@@ -73,10 +73,22 @@ pub struct Config {
 }
 
 /// One `[[stack]]` table.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Stack {
     /// One of rust, node, python, go, dotnet, jvm, ruby.
     pub id: String,
+    /// `detected` when `stack detect` wrote this entry, `manual` when a human
+    /// did.
+    ///
+    /// Detection reruns on every session start, and it only knows the
+    /// ecosystems it ships markers for. Without this field it overwrote the
+    /// whole table, so a project whose commands were written by hand — a
+    /// language the detector does not know, or a `sh ci/test` wrapper — lost
+    /// them at the next session start and `degraded` flipped to true, which
+    /// makes every command-running gate check skip. An absent value reads as
+    /// `manual`, so a file written before this field existed is protected.
+    #[serde(default = "default_source")]
+    pub source: String,
     /// The repo-relative marker paths that matched.
     #[serde(default)]
     pub markers: Vec<String>,
@@ -114,6 +126,48 @@ pub struct Stack {
 
 fn default_timeout() -> u64 {
     900
+}
+
+/// The `source` an entry with no such key carries.
+fn default_source() -> String {
+    STACK_MANUAL.to_string()
+}
+
+/// `[[stack]].source`: this entry was written by `stack detect`.
+pub const STACK_DETECTED: &str = "detected";
+/// `[[stack]].source`: this entry was written by a human.
+pub const STACK_MANUAL: &str = "manual";
+
+impl Default for Stack {
+    fn default() -> Self {
+        Stack {
+            id: String::new(),
+            source: default_source(),
+            markers: Vec::new(),
+            package_manager: String::new(),
+            source_roots: Vec::new(),
+            test_command: String::new(),
+            coverage_command: String::new(),
+            coverage_format: String::new(),
+            coverage_paths: Vec::new(),
+            lint_command: String::new(),
+            complexity_command: String::new(),
+            timeout_secs: default_timeout(),
+            env: BTreeMap::new(),
+        }
+    }
+}
+
+impl Stack {
+    /// True when `stack detect` owns this entry and may replace it.
+    ///
+    /// Anything that is not exactly `detected` is treated as a human's, which
+    /// is the safe direction: the cost of misreading a detected entry as
+    /// manual is a stale table a rerun leaves alone, and the cost of the
+    /// reverse is silently discarding a project's own commands.
+    pub fn is_detected(&self) -> bool {
+        self.source == STACK_DETECTED
+    }
 }
 
 /// `[frontend]`.
@@ -715,6 +769,18 @@ pub fn load(root: &Path) -> Result<Config, CliError> {
             ),
             ".devforgeai/config.toml",
         ));
+    }
+    for s in &cfg.stack {
+        if s.source != STACK_DETECTED && s.source != STACK_MANUAL {
+            return Err(CliError::at(
+                "DFA-E104",
+                format!(
+                    "config.toml [[stack]] '{}' has source '{}'; expected {STACK_DETECTED} or {STACK_MANUAL}",
+                    s.id, s.source
+                ),
+                ".devforgeai/config.toml",
+            ));
+        }
     }
     cfg.validate_minimums()?;
     Ok(cfg)

@@ -42,12 +42,13 @@ const EXPANSION_GATES: &[(&str, &[&str])] = &[
     ("release", &[]),
 ];
 
-/// How many consecutive times one Stop may block the same subject before it
-/// lets the turn end.
+/// How many times one Stop may block in a session before it lets the turn end.
 ///
 /// The harness overrides a Stop hook after eight consecutive blocks and ends
 /// the turn with nothing shown. Stopping at three keeps the decision here, so
-/// the FAIL handoff is rendered by this hook rather than discarded by the cap.
+/// the closing block is rendered by this hook rather than discarded by the cap.
+/// `stop_hook_active` is not read: this budget is strictly tighter than the
+/// ceiling that flag exists to keep a hook clear of.
 const STOP_BLOCK_CAP: i64 = 3;
 
 /// The cap the reference puts on a hook's output string, after which the
@@ -143,10 +144,6 @@ impl Payload {
         let v = self.0.get(key)?;
         text_of(v)
     }
-
-    fn bool_key(&self, key: &str) -> bool {
-        self.0.get(key).and_then(Value::as_bool).unwrap_or(false)
-    }
 }
 
 /// The text of a string or of an array of content blocks.
@@ -184,8 +181,8 @@ pub fn dispatch(ctx: &mut Ctx, event: &str, stdin: &str) -> Result<Outcome, CliE
     }
 
     // The payload is parsed before the trust check, because the Stop trust
-    // branch needs `stop_hook_active` to decide whether blocking again can
-    // change anything.
+    // branch needs `session_id` to charge the same block budget the gate
+    // branch charges.
     let p = match Payload::parse(stdin) {
         Ok(p) => p,
         Err(e) => return fail_closed(ctx, event, &e),
@@ -243,6 +240,36 @@ fn fail_closed(ctx: &mut Ctx, event: &str, e: &CliError) -> Result<Outcome, CliE
     Ok(out)
 }
 
+/// Charge one Stop block against this session's budget.
+///
+/// Returns true when the block is allowed, and records it. The budget is per
+/// session and on nothing else: the subject is exactly what a continuation
+/// turn can change, so keying on it lets an advancing story refill the budget
+/// and block without end. Both reasons a Stop can refuse — a failing gate and
+/// a trust failure — draw on this one counter, because there is one turn to
+/// hold open and the harness's own ceiling of eight ends it either way.
+///
+/// `blocked_phase` and `blocked_id` record which subject was blocked last;
+/// they key nothing.
+fn charge_block_budget(ctx: &mut Ctx, session_id: &str, phase: &str, id: &str) -> bool {
+    let Ok(s) = ctx.state_mut() else {
+        // The state file is unreadable. Allowing the block is the fail-closed
+        // answer: the turn is held rather than let through unchecked.
+        return true;
+    };
+    if s.stop_hook.blocked_session != session_id {
+        s.stop_hook.blocked_session = session_id.to_string();
+        s.stop_hook.block_count = 0;
+    }
+    if s.stop_hook.block_count >= STOP_BLOCK_CAP {
+        return false;
+    }
+    s.stop_hook.blocked_phase = phase.to_string();
+    s.stop_hook.blocked_id = id.to_string();
+    s.stop_hook.block_count += 1;
+    true
+}
+
 /// The pin command an operator runs to repair a trust failure.
 fn pin_command() -> String {
     let framework = trust::load_trust_file()
@@ -277,6 +304,22 @@ fn trust_failure(
         s.last_gate.result = "TRUST_FAIL".to_string();
         s.last_gate.failed_checks = vec![code.clone()];
     }
+    // A Stop that refuses on trust spends the same budget a Stop that refuses
+    // on a gate does. There is one counter because there is one turn: blocking
+    // for ever cannot repair a pin, and a trust failure that arrives mid-run —
+    // the source digest changing while the framework's own sources are being
+    // edited — otherwise blocked every Stop until the harness's eight-block
+    // cap ended the session with nothing shown.
+    let stop_may_block = if event == "stop" {
+        let session_id = p.opt_str(&["session_id"]).unwrap_or_default();
+        let (phase, id) = ctx
+            .state()
+            .map(|s| (s.current.phase.clone(), s.current.id.clone()))
+            .unwrap_or_default();
+        charge_block_budget(ctx, &session_id, &phase, &id)
+    } else {
+        true
+    };
     let store = ctx.store_state();
 
     let reason = format!(
@@ -293,19 +336,21 @@ fn trust_failure(
                  Blocked   you: run {pin} outside Claude Code\n\n\
                  No gate ran for this turn."
             );
-            if p.bool_key("stop_hook_active") {
-                // The continuation cannot repair a pin, so it ends holding the
-                // refusal rather than looping against it.
-                out.exit = Some(0);
-                out.data["exit"] = json!(0);
-                out.data["blocked"] = json!(false);
-                json!({ "systemMessage": system })
-            } else {
+            if stop_may_block {
                 json!({
                     "decision": "block",
                     "reason": cap(&format!("{reason} No gate ran for this turn.")),
                     "systemMessage": system,
                 })
+            } else {
+                // The budget is spent. Nothing a continuation can do repairs a
+                // pin, so the turn ends holding the refusal rather than looping
+                // against it until the harness overrides the hook and shows
+                // nothing at all.
+                out.exit = Some(0);
+                out.data["exit"] = json!(0);
+                out.data["blocked"] = json!(false);
+                json!({ "systemMessage": system })
             }
         }
         "subagent-stop" | "prompt-expansion" => block_decision(&reason),
@@ -1338,23 +1383,15 @@ fn stop(ctx: &mut Ctx, p: &Payload) -> Result<Outcome, CliError> {
     // rendered by this hook rather than discarded at the harness's cap of
     // eight. `[current].phase` and `[current].id` are still recorded, as the
     // record of which subject was blocked last.
-    let (blocked, block_count) = {
+    let blocked = result == "FAIL" && charge_block_budget(ctx, &session_id, &phase, &id);
+    let block_count = {
         let s = ctx.state_mut()?;
-        if s.stop_hook.blocked_session != session_id {
-            s.stop_hook.blocked_session = session_id.clone();
-            s.stop_hook.block_count = 0;
-        }
-        let blocked = result == "FAIL" && s.stop_hook.block_count < STOP_BLOCK_CAP;
-        if blocked {
-            s.stop_hook.blocked_phase = phase.clone();
-            s.stop_hook.blocked_id = id.clone();
-            s.stop_hook.block_count += 1;
-        } else if result == "PASS" {
+        if result == "PASS" {
             s.stop_hook.block_count = 0;
             s.stop_hook.blocked_phase = String::new();
             s.stop_hook.blocked_id = String::new();
         }
-        (blocked, s.stop_hook.block_count)
+        s.stop_hook.block_count
     };
     ctx.store_state()?;
 

@@ -4,7 +4,7 @@ Read this before the first criterion of workflow step 7. The loop body runs once
 
 The shape of the cycle is one criterion at a time, test before code. The record that the discipline held is two different 40-hex commit shas in one `cycles` entry of the build note: the test existed and failed at `red_commit`, and the code that satisfies it landed at `green_commit`.
 
-## 7.1 · Write the failing test — `ac-test-writer`
+## 7.1 · Write the failing test case — `ac-test-writer`
 
 One invocation per criterion, serially. Nothing runs beside it.
 

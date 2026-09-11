@@ -267,4 +267,12 @@ Two complete the workflow and fail on content rather than on plumbing. Discover 
 
 Two are still blocked on something other than the skill. Build waits on a fixture, and Release waits on a CLI fix.
 
+**The first hooks-on run, with a real pin.** `ex-01` under `claude -p`, with `trust.toml` written by a human outside Claude Code. Two things were measured that no hooks-off run could show.
+
+The Stop hook ran the Explore gate, blocked the turn three times, and then exited 0 with the FAIL handoff in `systemMessage`. That is the per-session budget of §7 working live, and it confirms the key: the budget is `session_id` and nothing else, so a continuation that changes the subject does not reset it.
+
+Then `trust verify` failed mid-run with `DFA-E504`, the source-digest drift. The cause is not a defect: a fixer was editing `cli/src` while the session was open, and `trust verify` compares the source digest whenever a Claude session is active. Editing the framework's own source while any session is running invalidates trust for every session until a human re-pins, by design — that is what the check is for, and the framework is the one project where its own source is also the code under edit. Working on `cli/` means either no session open, or a re-pin before the next one.
+
+What the run did surface is a defect: the trust-failure branch of the Stop hook kept blocking past three, because it carried its own exit condition rather than sharing the gate branch's counter. Six blocks between the two branches reaches the harness's eight-block ceiling, which shows the user nothing. F2 is folding the trust branch into the shared three-block budget, and `specs/01-cli.md` `## Hooks` and conventions §7 and §8 now state that the budget is one counter both branches spend.
+
 **What this leaves.** The suite's four verification gates — dry-run materialisation, preamble exit 0, `config.toml` and `state.toml` parse, and `gates.toml` loading by the real binary across every declared phase — exist because six of the seven failures would have been caught by them before a paid run. They are cheap and they run first. Hooks-on measurement still waits on the pin of Q-016.

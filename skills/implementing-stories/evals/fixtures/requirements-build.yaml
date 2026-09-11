@@ -1,0 +1,49 @@
+schema: devforgeai/requirements/1
+id: IDEA-004
+phase: discover
+status: accepted
+produced_by: discovering-requirements
+consumes: [IDEA-004]
+open_questions: []
+revision: 1
+revision_log: []
+accepted_by: user
+accepted_at: 2026-09-10T14:22:05Z
+personas:
+  - id: PERSONA-001
+    name: Shopper
+    description: A signed-in customer buying from the storefront.
+    goal: Complete a purchase without re-entering data.
+epics:
+  - id: EPIC-002
+    title: Checkout
+    scope: A signed-in shopper places the order held in the cart.
+    out_of_scope:
+      - The system does not hold card numbers.
+    success_metric: Checkout completion reaches 80 percent.
+    requirements: [REQ-007, REQ-011]
+requirements:
+  # The two REQ ids the build stories name in their frontmatter `consumes`.
+  # Without this document the `build-docs` gate check fails DFA-E210
+  # ("references REQ-007, which no document defines") and the whole run leaves
+  # as a SEND BACK to Plan before the note is written.
+  - id: REQ-007
+    actor: PERSONA-001
+    statement: A signed-in shopper places the order held in the cart and receives its identifier.
+    rationale: A shopper who cannot confirm an order abandons the cart.
+    acceptance_signal: The response carries one order identifier and the order is stored.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
+  - id: REQ-011
+    actor: PERSONA-001
+    statement: A shopper sees the order total before the order is placed.
+    rationale: A total that appears after the fact is disputed.
+    acceptance_signal: The displayed total equals the sum of the cart lines.
+    priority: should
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []

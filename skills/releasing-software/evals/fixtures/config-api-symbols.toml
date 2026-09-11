@@ -3,7 +3,11 @@ generated_at = "2026-09-11T08:40:00Z"
 cli_version = "1.0.0"
 degraded = false
 
+# `source = "manual"` so the SessionStart `stack detect` leaves this
+# entry alone: a detected rewrite would change the commands the gate
+# spawns out from under the case.
 [[stack]]
+source = "manual"
 id = "primary"
 markers = ["project.manifest"]
 source_roots = ["src"]

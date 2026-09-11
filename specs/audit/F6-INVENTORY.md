@@ -244,3 +244,13 @@ The per-case `timeout` key has landed in the runner, so the fourth pass's note t
 On the last item the mechanism is worth stating exactly, because the ordering in the code is the reverse of the outcome: the `DFA-E430` neither-or-both check runs first, but a lone non-id token *satisfies* it — exactly one of the two was given — so it falls through to `subject_ok` and fails there with `DFA-E013`. The specs now say that rather than implying `DFA-E430` is skipped.
 
 All six fences that must match a shipped file — `reflect-report.yaml`, `rec-targets.md`, `release.yaml`, both `cases.jsonl`, and Discover's `questions.md` — verified byte-identical after the edits.
+
+## Seventh pass — `stack detect` must not clobber a hand-written stack
+
+From the defect the first hooks-on eval run surfaced. Written from the coordinator's statement of the rule F2 is building; the `source` key is not in `cli/src/cmd/stack.rs` yet.
+
+- `specs/01-cli.md` `config.toml` table: `[[stack]]` gains `source = "detected" | "manual"`, absent meaning `manual`, so a file written before the key existed is protected rather than overwritten.
+- `specs/01-cli.md` `stack detect`: the merge rule — replace only `detected` entries, keep `manual` ones byte for byte, append a newly detected stack whose `id` is new, and a `manual` entry wins over a `detected` copy for the same ecosystem. Two consequences stated: `degraded` is true only when the table is empty *after* the merge, so a project whose stack a human wrote by hand is not degraded; and `[frontend].globs` is the union, so a hand-added glob survives a later detect. Writes only when the rendered TOML differs ignoring `generated_at`, with the reason — `detect` runs on every SessionStart, and writing every time would make the file look edited every session and churn the Stop-time scan and any mtime watcher. `--json` `written` is now documented as `false` on a no-op as well as under `--dry-run`.
+- `specs/01-cli.md` `hook run` SessionStart row and `specs/00-conventions.md` §7 hook table: the `detect` on session start is idempotent and preserves `manual` stacks.
+- `specs/00-conventions.md` §4 CLI table: the `stack detect` row carries the merge rule in one sentence.
+- `specs/01-cli.md` `## Evals` tamper guard: `config.toml` is compared parsed and with `generated_at` removed, because the SessionStart `detect` rewriting that one timestamp is the CLI doing its job rather than the model rewriting the file that judges it. The guard's verb changed from "hashed" to "compared", since one of the four is no longer a plain digest equality.

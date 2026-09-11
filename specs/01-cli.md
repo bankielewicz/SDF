@@ -82,6 +82,7 @@ degraded = false                               # bool; default false; true when 
 
 [[stack]]                                      # zero or more tables; detection order is the table order
 id = "rust"                                    # string; enum: rust | node | python | go | dotnet | jvm | ruby
+source = "detected"                            # string; enum: detected | manual; absent means manual
 markers = ["Cargo.toml"]                       # array[string]; default []; repo-relative paths that matched
 package_manager = "cargo"                      # string; enum per ecosystem; "" when undetermined
 source_roots = ["src"]                         # array[string]; default per ecosystem table
@@ -878,7 +879,13 @@ Markers are searched at the project root and at directory depth 1 and 2 below it
 | `jvm` | `pom.xml`, `build.gradle`, `build.gradle.kts` | `maven` with `pom.xml`, else `gradle` | maven `mvn -q -B test`; gradle `./gradlew test` | maven `mvn -q -B jacoco:report`; gradle `./gradlew jacocoTestReport` | `jacoco`, maven `["target/site/jacoco/jacoco.xml"]`, gradle `["build/reports/jacoco/**/*.xml"]` | `""` | `["src/main/java", "src/main/kotlin"]` filtered to those that exist |
 | `ruby` | `Gemfile` | `bundler` | `bundle exec rspec` when `spec/` exists, else `bundle exec rake test` | the test command with `COVERAGE=1` added to `env` | `lcov`, `["coverage/lcov.info"]` | `bundle exec rubocop` when `.rubocop.yml` exists, else `""` | `["lib", "app"]` filtered to those that exist |
 
-Zero marker matches writes `stack = []` and `degraded = true`, prints `Stack undetected; command checks skipped.` on stderr, and exits 0. In that state the `build` gate keeps its `doc_valid` check and its `tests_pass`, `coverage_min`, and `lint_clean` checks evaluate to `skip` with `reason: degraded`, per the degradation rule in `## Outputs`.
+**Detection never clobbers a hand-written stack.** Each `[[stack]]` table carries `source`, either `detected` or `manual`; a table with no `source` key is read as `manual`, so a `config.toml` written before this key existed is protected rather than overwritten. `detect` replaces only the `detected` entries, leaves every `manual` one byte for byte, and appends a newly detected stack whose `id` no existing table holds. A stack a human wrote for an ecosystem detection also finds is the human's: the `manual` entry stands and no `detected` copy is appended beside it.
+
+Two consequences follow. `degraded` is true only when the table is empty after the merge, so a project detection finds nothing in but whose stack a human wrote by hand is not degraded and its command checks run. `[frontend].globs` is the union of what detection produced and what the file already held, so a glob a human added survives a later detect.
+
+`detect` writes `config.toml` only when the rendered TOML differs from what is on disk, compared with `generated_at` removed from both sides. An unchanged project therefore leaves the file untouched, including its modification time — which matters because `stack detect` runs on every SessionStart, and a write on every session would make the file look edited on every session and would churn the Stop-time scan and any watcher reading mtimes.
+
+Zero marker matches and no `manual` entry writes `stack = []` and `degraded = true`, prints `Stack undetected; command checks skipped.` on stderr, and exits 0. In that state the `build` gate keeps its `doc_valid` check and its `tests_pass`, `coverage_min`, and `lint_clean` checks evaluate to `skip` with `reason: degraded`, per the degradation rule in `## Outputs`.
 
 Detection does not assign the `devforgeai-json` coverage format. A human sets it, pointing `coverage_paths` at a file the project writes with this shape:
 
@@ -887,9 +894,9 @@ Detection does not assign the `devforgeai-json` coverage format. A human sets it
   "files": [ { "path": "src/domain/order.rs", "covered": 120, "total": 130 } ] }
 ```
 
-`[frontend].globs` is written as the default list in `## Outputs`, extended for a `node` stack with `**/*.ts` and `**/*.js` restricted to the `interface` layer globs. `[[layer]]`, `[coverage]`, and `[[verifier]]` keep their previous values when the file exists.
+`[frontend].globs` is written as the default list in `## Outputs`, extended for a `node` stack with `**/*.ts` and `**/*.js` restricted to the `interface` layer globs, and unioned with whatever the file already held per the merge rule above. `[[layer]]`, `[coverage]`, and `[[verifier]]` keep their previous values when the file exists.
 
-`--json` `data`: `{"stacks":[<the [[stack]] tables as objects>],"degraded":false,"written":true,"path":".devforgeai/config.toml"}`.
+`--json` `data`: `{"stacks":[<the [[stack]] tables as objects>],"degraded":false,"written":true,"path":".devforgeai/config.toml"}`. `written` is `false` when the merge produced TOML identical to the file on disk and nothing was written, and under `--dry-run`.
 
 Human output, one line per stack, then the flag:
 
@@ -1548,7 +1555,7 @@ Each event runs `trust verify` first, per §8. The events that can block are `pr
 
 | `<event>` | Reads from stdin | Runs | Blocks |
 |---|---|---|---|
-| `session-start` | `cwd` | `stack detect`, then `handoff` | nothing; exit 0, the block on plain stdout, which this event adds to Claude's context |
+| `session-start` | `cwd` | `stack detect`, then `handoff` | nothing; exit 0, the block on plain stdout, which this event adds to Claude's context. The `detect` run preserves every `manual` stack and writes `config.toml` only when the merged result differs, so opening a session does not rewrite a hand-tuned file |
 | `prompt-expansion` | the matched command name, the prompt's first argument | `trust verify`, then `gate require <phase> <id>` with the phase taken from the command name and the id from the argument | exit 2 with `{"decision":"block","reason":...}` on a trust failure or a predecessor gate that has not passed; exit 0 and empty stdout otherwise |
 | `pre-tool-use` | `tool_name`, `tool_input.file_path` or `tool_input.notebook_path`, `tool_input.content` for Write only, `tool_input.command` for the shell tools, `agent_type` | write tools: `doc validate --producer-check <path>` when the path is under `.devforgeai/`, with `--stdin-content` for Write and without it for Edit; `design lint <path>` when the path matches the frontend globs; `story files --check <path>` when the path is outside `.devforgeai/` and `[current].phase` is `build`. Shell tools: `doc validate --producer-check` on every path the command appears to write under `.devforgeai/`, and the metrics-command decision below | exit 2 with `hookSpecificOutput.permissionDecision` of `deny` on any of them failing |
 | `trust-check` | nothing | `trust verify` and nothing else: no `config.toml` read, no `state.toml` read, no path resolution, so it adds one hash to the write path and can fail for no other reason | exit 2 with `permissionDecision: deny` naming the pin command on a trust failure; exit 0 and empty stdout otherwise |
@@ -1648,7 +1655,7 @@ The subcommand exits 0 or 4 and writes nothing. Behaviour per hook on failure:
 | UserPromptExpansion | exit 2 with `{"decision":"block","reason":...}`; the skill body never enters context, so a phase cannot start on an unpinned binary |
 | PreToolUse, both the `pre-tool-use` and the `trust-check` arms | exit 2 with `hookSpecificOutput.permissionDecision` of `deny`; the deny fires in every permission mode including `bypassPermissions`, and no other hook's allow overrides it. The `trust-check` matcher covers `Write`, `Edit`, `NotebookEdit`, `Bash`, `PowerShell`, and `Agent`, so the session can read and reason and can change nothing |
 | PostToolUse | exit 4; the tool result stands; the code travels in `systemMessage` |
-| Stop | exit 2 with `decision: "block"` naming the pin command, and no gate runs for the turn; with `stop_hook_active` true it exits 0 carrying the `systemMessage` alone, so the harness's continuation ends and the user is left holding the refusal rather than a loop. `state.toml` `[last_gate].result` takes `TRUST_FAIL` in both branches, which is a record rather than the channel the refusal depends on — the binary under suspicion is the one that renders the handoff |
+| Stop | exit 2 with `decision: "block"` naming the pin command, and no gate runs for the turn, under the same three-block budget the gate branch uses. The budget is one counter, `[stop_hook].block_count`, shared by both branches and keyed on `session_id` alone: a turn that blocks twice on a FAIL and once on a trust failure has spent it, and the fourth Stop exits 0 whichever branch it takes. Measured otherwise, a trust-failure branch with its own exit condition blocked past three and was stopped by the harness's eight-block ceiling rather than by the framework. `state.toml` `[last_gate].result` takes `TRUST_FAIL` in both branches, which is a record rather than the channel the refusal depends on — the binary under suspicion is the one that renders the handoff |
 | SubagentStop | exit 2 with `{"decision":"block","reason":...}`; nothing is ingested |
 | pre-commit, commit-msg, pre-push | exit 4; git aborts the operation |
 
@@ -2840,7 +2847,7 @@ A `preflight` entry is a bare command string required to exit 0, or an object sa
 
 `--permission-mode` is `bypassPermissions`, and the reason is the acceptance set rather than convenience. `acceptEdits` covers Write and Edit and nothing else, and `claude -p` has no approval surface, so every command the mode does not cover is denied outright with no one to ask. A compound shell command matches no `Bash(devforgeai *)` rule — `cd wt/STORY-014 && ./ci/test` is what a Build run issues — and neither does the project's own test command, so a run under `acceptEdits` failed on the shell rather than on the skill. What bypassing costs is bounded: the workspace is a throwaway the runner creates under `mkdtemp` and deletes, the child sees no user configuration, and the framework's own hooks still run inside it — the `PreToolUse` deny fires in every permission mode, `bypassPermissions` included, and no allow overrides it. So the gates still enforce and only the prompt is gone.
 
-**The tamper guard.** Bypassing the prompt means a model in an eval can rewrite the files that decide whether it passed. `.devforgeai/gates.toml`, `.devforgeai/config.toml`, `.devforgeai/state.toml`, and the workspace `.claude/settings.json` are hashed before the run and after it, and any change marks the case `status: tampered`, with the changed path and its before and after digests in `tampered`, whatever the grader returned. `state.toml` is the exception to the equality check, because `phase set` rewrites it by design and that is the run doing its job; it is hashed anyway so the record carries both digests, and reported only when the file is absent afterwards, since a deletion is never the CLI's doing.
+**The tamper guard.** Bypassing the prompt means a model in an eval can rewrite the files that decide whether it passed. `.devforgeai/gates.toml`, `.devforgeai/config.toml`, `.devforgeai/state.toml`, and the workspace `.claude/settings.json` are compared before the run and after it, and any change marks the case `status: tampered`, with the changed path and its before and after digests in `tampered`, whatever the grader returned. `state.toml` is the exception to the equality check, because `phase set` rewrites it by design and that is the run doing its job; it is hashed anyway so the record carries both digests, and reported only when the file is absent afterwards, since a deletion is never the CLI's doing. `config.toml` is compared parsed and with `generated_at` removed, because `stack detect` runs on SessionStart and rewriting that one timestamp is the CLI doing its job rather than the model rewriting the file that judges it.
 
 No grader reads those four files today, so tampering buys nothing. That is a property of the current graders rather than of the harness, and the guard makes it a property of the harness: a grader added later that does read one of them inherits the protection rather than having to ask for it.
 
