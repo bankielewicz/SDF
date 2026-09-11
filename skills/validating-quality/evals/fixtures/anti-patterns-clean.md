@@ -24,6 +24,18 @@ open_questions: []
 | remediation | The marker is removed with the work it named. |
 | source | CON-009 |
 
+### AP-002 A driver type at the boundary
+
+| Field | Value |
+|---|---|
+| category | layering |
+| severity | high |
+| scope | src/application/** |
+| detector_kind | regex |
+| detector | driver_error |
+| remediation | The adapter wraps the failure and the use case reads the wrapped type. |
+| source | CON-003 |
+
 ### AP-004 An unreferenced helper
 
 | Field | Value |
@@ -41,4 +53,5 @@ open_questions: []
 | AP | Category | Severity | Scope | Detector kind | Detector | Source |
 |---|---|---|---|---|---|---|
 | AP-001 | smell | low | src/** | literal | PENDING-MARKER | CON-009 |
+| AP-002 | layering | high | src/application/** | regex | driver_error | CON-003 |
 | AP-004 | smell | medium | src/** | regex | unused_ | CON-009 |

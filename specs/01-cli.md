@@ -1226,7 +1226,7 @@ devforgeai story files --diff [--id <STORY-nnn>] [--base <ref>] [--json] [--proj
 
 Exactly one of `--check`, `--list`, and `--diff` is given; none or two is `DFA-E011`. `--id` defaults to `state.toml` `[active].build`.
 
-`--check` exits 0 when `<path>`, made repo-relative, equals a `Path` value in that story's `## Files` table, and exits 1 with `DFA-E239` otherwise. `--list` prints one `Path`, `Kind`, `Layer` triple per line. `--diff` takes the union of the paths changed between `--base` and `HEAD` and the uncommitted changes of the work tree, tests each by the `--check` rule, and exits 1 with `DFA-E239` and one stderr line per undeclared path. `--base` defaults to the merge-base of `config.toml` `[build].base_ref` and the current work tree's branch head.
+`--check` exits 0 when `<path>` equals a `Path` value in that story's `## Files` table, and exits 1 with `DFA-E239` otherwise. Two spellings of the same file are accepted, because both occur: the worktree-relative one a model writes from inside the worktree, `src/domain/order.ext`, and the `wt/<story>/`-prefixed one a hook sees when the session's directory is the main checkout. Each is reduced to the worktree-relative form and compared against that story's own checkout — the story the path's worktree belongs to, which is not always `[active].build` when two builds are open. A refusal names the path by its worktree-relative form whichever spelling arrived, so the message names the file the model knows it wrote rather than a path assembled out of where the hook happened to be standing. `--list` prints one `Path`, `Kind`, `Layer` triple per line. `--diff` takes the union of the paths changed between `--base` and `HEAD` and the uncommitted changes of the work tree, tests each by the `--check` rule, and exits 1 with `DFA-E239` and one stderr line per undeclared path. `--base` defaults to the merge-base of `config.toml` `[build].base_ref` and the current work tree's branch head.
 
 An absent story is `DFA-E200`, exit 1. An absent `[active].build` is `DFA-E412`, exit 0, so the PreToolUse hook does not block outside a Build run.
 
@@ -1330,7 +1330,11 @@ Exit codes: 0 success; 1 on `DFA-E271`, `DFA-E272`, `DFA-E273`; 3 on `DFA-E012`;
 devforgeai commit <STORY-nnn> -m <message> [--paths <path>,...] [--json] [--project <path>]
 ```
 
-`--paths` defaults to every path git reports as changed in the current work tree. Each path is tested by the `story files --check` rule first; a path outside the story's `## Files` set is `DFA-E239`, exit 1, and nothing is staged.
+Git runs in `Ctx::source_root()`, the registered worktree of `[active].build` and the project root when none is registered, so a commit made from a session standing in the main checkout lands on the worktree's branch rather than on the root's.
+
+`--paths` defaults to the files git reports as changed under that worktree — tracked, or untracked and not ignored — which is the set a `git add -A` there would stage. `--paths` accepts the same two spellings `story files --check` does, worktree-relative or `wt/<story>/`-prefixed.
+
+The set is then partitioned rather than simply tested. Paths under `.devforgeai/` are framework artifacts: reports, state, the documents a phase wrote, none of which appears in a story's `## Files` table and all of which belong in the commit. They are staged without being tested against the table. Every other path is tested by the `story files --check` rule, and one outside the story's `## Files` set is `DFA-E239`, exit 1, nothing staged, with the path named by its worktree-relative form. Without the partition every Build commit failed on the build report the gate had just written.
 
 The committed message is `<STORY-nnn>: <message>` when `<message>` does not already hold the story id, and `<message>` verbatim when it does, which satisfies the §7 `commit-msg` hook by construction rather than by an instruction to the model. The command stages the paths and commits, so the `pre-commit` and `commit-msg` hooks run unchanged; a non-zero hook exit becomes exit 1 with the hook's stderr on stderr and nothing committed. An empty stage set is `DFA-W243`, exit 0, nothing committed.
 

@@ -7,6 +7,22 @@ use crate::ctx::Ctx;
 use crate::errors::{CliError, Diag};
 use crate::{git, story, Outcome};
 
+/// A `--paths` entry read against the story's own checkout.
+///
+/// `wt_rel` is the worktree's root-relative directory, or `""` when the story
+/// is built in the main checkout. Both spellings of a path resolve to the
+/// worktree-relative one the declared set and git both use.
+fn worktree_relative(wt_rel: &str, p: &str) -> String {
+    let p = story::normalise_path(p);
+    if wt_rel.is_empty() {
+        return p;
+    }
+    match p.strip_prefix(&format!("{wt_rel}/")) {
+        Some(inner) => inner.to_string(),
+        None => p,
+    }
+}
+
 /// The git hooks this command's commit can trigger.
 const HOOKS: &[&str] = &["pre-commit", "commit-msg"];
 
@@ -23,17 +39,31 @@ pub fn run(ctx: &mut Ctx, a: &CommitArgs) -> Result<Outcome, CliError> {
     }
 
     let root = ctx.root.clone();
-    git::require_work_tree(&root)?;
+    // The story document lives at the root; the work being committed lives in
+    // the story's own checkout. Running git at the root staged whatever the
+    // main checkout happened to hold — a Claude config file, a coverage
+    // artifact — and could not see the worktree's branch at all.
+    let source = ctx.worktree_path(&a.id).unwrap_or_else(|| root.clone());
+    let wt_rel = if source == root {
+        String::new()
+    } else {
+        crate::cmd::story::repo_relative(&root, &source)
+    };
+    git::require_work_tree(&source)?;
     let s = story::load(&root, &a.id)?;
     let declared: Vec<&str> = s.files.iter().map(|f| f.path.as_str()).collect();
 
     let paths: Vec<String> = match &a.paths {
+        // `--paths` names the story's own files, so it is read against the
+        // story's checkout. A caller who spells them from the root, with the
+        // `wt/<story>/` prefix the hook reports, means the same files.
         Some(list) => list
             .split(',')
-            .map(story::normalise_path)
+            .map(|p| worktree_relative(&wt_rel, p))
             .filter(|p| !p.is_empty())
             .collect(),
-        None => git::changed(&root, "HEAD")?
+        // Tracked changes and unignored new files, under the worktree.
+        None => git::changed(&source, "HEAD")?
             .into_iter()
             .map(|c| c.path)
             .collect(),
@@ -75,7 +105,7 @@ pub fn run(ctx: &mut Ctx, a: &CommitArgs) -> Result<Outcome, CliError> {
 
     let mut add: Vec<&str> = vec!["add", "--"];
     add.extend(staged.iter().map(String::as_str));
-    let out = git::run(&root, &add)?;
+    let out = git::run(&source, &add)?;
     if !out.ok() {
         return Err(CliError::new(
             "DFA-E900",
@@ -84,7 +114,7 @@ pub fn run(ctx: &mut Ctx, a: &CommitArgs) -> Result<Outcome, CliError> {
     }
 
     let message = message_for(&a.id, &a.message);
-    let commit = git::run(&root, &["commit", "-m", &message])?;
+    let commit = git::run(&source, &["commit", "-m", &message])?;
     if !commit.ok() {
         // A refusing hook is the common case. The spec defines no code for it:
         // the hook's own stderr goes to stderr and the command exits 1.
@@ -115,7 +145,7 @@ pub fn run(ctx: &mut Ctx, a: &CommitArgs) -> Result<Outcome, CliError> {
         });
     }
 
-    let sha = git::run(&root, &["rev-parse", "--short", "HEAD"])?
+    let sha = git::run(&source, &["rev-parse", "--short", "HEAD"])?
         .stdout
         .trim()
         .to_string();

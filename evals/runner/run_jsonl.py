@@ -22,6 +22,10 @@ What the child sees (AUDIT-5 EVL-010 to EVL-014, EVL-051):
 * the output format is ``stream-json --verbose --include-partial-messages``, so
   the transcript a grader sees carries tool calls, tool inputs and tool results
   and not only the final ``result`` string;
+* the redirected ``CLAUDE_CONFIG_DIR`` sits beside the workspaces too, so
+  ``devforgeai commit`` does not see its ``.claude.json`` as an untracked change;
+* a git-seeded workspace carries a ``.gitignore`` for what the stand-in commands
+  write, so a commit is not refused over a coverage report;
 * the raw streams are written to a log directory beside the workspaces, never
   inside one, so no grader's tree walk counts them as a write, and stdout is
   written line by line as it arrives, so a case killed at its timeout still
@@ -504,6 +508,20 @@ def workspace_settings(case, claude_dir, options):
     return settings
 
 
+# What the stand-in commands and the redirected home write into a workspace.
+# A git-seeded case commits through `devforgeai commit`, which refuses on an
+# unexpected untracked file, so these are ignored rather than left to surprise
+# the run.
+WORKSPACE_GITIGNORE = """# Written by the eval harness and its stand-in commands.
+coverage/
+out/
+.dfa-*.txt
+.dfa-expect.tmp
+.claude/dfa-home/
+.explore-prototype/
+"""
+
+
 def init_git(workspace, spec):
     """Make the workspace a git work tree with one commit, and seed worktrees.
 
@@ -522,6 +540,9 @@ def init_git(workspace, spec):
     Identity is set on the repository so the commit does not depend on the
     machine's ``~/.gitconfig``.
     """
+    ignore = os.path.join(workspace, ".gitignore")
+    if not os.path.exists(ignore):
+        _write_text(ignore, WORKSPACE_GITIGNORE)
     steps = [["init", "-q"],
              ["config", "user.email", "evals@devforgeai.invalid"],
              ["config", "user.name", "DevForgeAI evals"],
@@ -1130,7 +1151,7 @@ def _probe_prompts_none(binary):
     return bool(match) and tuple(int(g) for g in match.groups()) >= (2, 1, 259)
 
 
-def isolate_claude_config(home):
+def isolate_claude_config(config):
     """Build the redirected ``CLAUDE_CONFIG_DIR`` and return its path (EVL-001).
 
     Inherited, ``~/.claude`` loads the machine's own skills, agents, plugins,
@@ -1145,8 +1166,11 @@ def isolate_claude_config(home):
     user's project list does not travel into a workspace the model can read.
     Verified on this machine: a ``claude -p`` run under the redirect returns a
     result with ``is_error: false``.
+
+    The directory sits beside the workspaces, never inside one. It used to live
+    at ``<workspace>/.claude/dfa-home/claude-config``, and ``devforgeai commit``
+    then saw its ``.claude.json`` as an untracked change in the story's worktree.
     """
-    config = os.path.join(home, "claude-config")
     os.makedirs(config, exist_ok=True)
     source = os.path.join(os.path.expanduser("~"), ".claude", ".credentials.json")
     if os.path.isfile(source):
@@ -1159,12 +1183,14 @@ def isolate_claude_config(home):
     return config
 
 
-def child_environment(home, devforgeai_bin, claude_config="isolate"):
+def child_environment(home, devforgeai_bin, claude_config="isolate",
+                      config_dir=""):
     """The environment the child gets: binary on PATH, session variables gone."""
     environment = dict(os.environ)
     environment["DEVFORGEAI_HOME"] = home
     if claude_config == "isolate":
-        environment["CLAUDE_CONFIG_DIR"] = isolate_claude_config(home)
+        environment["CLAUDE_CONFIG_DIR"] = isolate_claude_config(
+            config_dir or os.path.join(home, "claude-config"))
     # EVL-012: the skill preambles call `devforgeai`; a non-zero exit from a
     # !`...` injection aborts the whole skill invocation.
     environment["PATH"] = (os.path.dirname(os.path.abspath(devforgeai_bin))
@@ -1242,8 +1268,9 @@ def run_streaming(argv, workspace, environment, prompt, timeout, stdout_path):
 
 def invoke(argv, workspace, home, timeout, prompt, options, log_dir, case_id):
     """Run claude in the workspace. Returns (status, transcript, exit, meta)."""
-    environment = child_environment(home, options.devforgeai_bin,
-                                    options.claude_config)
+    environment = child_environment(
+        home, options.devforgeai_bin, options.claude_config,
+        os.path.join(options.workdir, "homes", case_id) if case_id else "")
     # PATH lookup here rather than in the spawn, so a .cmd shim on Windows
     # resolves the same way a bare name does on a shell.
     argv = [shutil.which(argv[0]) or argv[0]] + argv[1:]
@@ -1437,6 +1464,44 @@ def preflight_case(case, files, options, skill_name):
     try:
         workspace, home = make_workspace(case, files, options)
         environment = child_environment(home, options.devforgeai_bin, "inherit")
+
+        # Every seeded document under `.devforgeai/` resolves its references.
+        # A case that cites an id nothing defines fails `build-docs` mid-run
+        # with DFA-E210 and leaves as a SEND BACK before writing anything, which
+        # grades the fixture rather than the skill (BLD-01 on REQ-007, vq-01 on
+        # ADR-002 and AP-002). Warnings are not failures here; the gate's
+        # `doc_valid` check does not fail on them either.
+        unresolved = []
+        for relative in sorted(files):
+            if not relative.startswith(".devforgeai/"):
+                continue
+            if not relative.endswith((".md", ".yaml")):
+                continue
+            probe = subprocess.run(
+                [options.devforgeai_bin, "doc", "validate", relative],
+                cwd=workspace, env=environment, capture_output=True, text=True,
+                timeout=300, encoding="utf-8", errors="replace")
+            detail = (probe.stderr or probe.stdout or "")
+            for line in detail.splitlines():
+                if "DFA-E210" not in line:
+                    continue
+                found = re.search(r"references ([A-Z]+)-(\d{3})", line)
+                # Scoped to the cross-references a phase's own readers resolve:
+                # a CON, AP or ADR cited by a context file or an ADR, which is
+                # what `standards-reviewer` reported as DFA-E325 on vq-01. An
+                # `IDEA-` or `REQ-` citation points outside the workspace a
+                # phase fixture builds and is not this check's business.
+                if found and found.group(1) in ("CON", "AP", "ADR", "REQ"):
+                    unresolved.append("%s: %s" % (relative, line.strip()[:120]))
+        if unresolved:
+            # A hard failure. An unresolved CON, AP, ADR or REQ is what made the
+            # Verify reviewer report DFA-E325 on vq-01 and the build gate report
+            # DFA-E210 on BLD-01, and Build's `context-validator` reads the same
+            # set as Verify's `standards-reviewer`. A case citing an id nothing
+            # defines grades its own fixture rather than the skill.
+            print("FAIL  %s  %d seeded reference(s) resolve to nothing:\n    %s"
+                  % (case["id"], len(unresolved), "\n    ".join(unresolved[:5])))
+            return False
 
         # `make_workspace` has already run `stack detect`. A case that seeds
         # manual stacks must not come out of it degraded: a degraded config

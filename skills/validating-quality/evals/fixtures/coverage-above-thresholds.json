@@ -1,0 +1,14 @@
+{
+  "schema": "cobertura-json/1",
+  "generated_at": "2026-09-10T09:00:00Z",
+  "overall": 87.4,
+  "layers": {
+    "domain": 96.2,
+    "application": 88.1,
+    "infrastructure": 83.0,
+    "interface": 74.5
+  },
+  "files": {
+    "src/domain/order.ext": 96.2
+  }
+}

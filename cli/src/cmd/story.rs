@@ -588,7 +588,8 @@ pub fn files(ctx: &mut Ctx, a: &StoryFilesArgs) -> Result<Outcome, CliError> {
     let declared: Vec<String> = s.files.iter().map(|f| f.path.clone()).collect();
 
     if let Some(path) = &a.check {
-        let rel = repo_relative(&root, path);
+        let worktree = ctx.worktree_path(&id);
+        let rel = declared_relative(&root, worktree.as_deref(), path);
         let allowed = declared.contains(&rel);
         let mut warnings = Vec::new();
         if !allowed {
@@ -708,6 +709,36 @@ fn diff(ctx: &mut Ctx, s: &Story, base: Option<&str>) -> Result<Outcome, CliErro
 }
 
 /// A path made repo-relative in forward-slash form.
+/// The path a declared-set comparison uses: relative to the checkout the
+/// story is being built in.
+///
+/// A story's `## Files` names paths relative to its own checkout, and during a
+/// worktree build the file being written lives under `wt/<story>/`. Comparing
+/// the root-relative form against the declared set refused every declared file
+/// in the worktree, because `wt/STORY-014/tests/x` is not `tests/x`.
+///
+/// Both spellings resolve: a path given against the root is stripped of the
+/// worktree prefix, and one already given against the worktree is left alone.
+pub fn declared_relative(
+    root: &std::path::Path,
+    worktree: Option<&std::path::Path>,
+    path: &std::path::Path,
+) -> String {
+    let rel = repo_relative(root, path);
+    let Some(wt) = worktree else {
+        return rel;
+    };
+    let wt_rel = repo_relative(root, wt);
+    if wt_rel.is_empty() {
+        return rel;
+    }
+    let prefix = format!("{wt_rel}/");
+    match rel.strip_prefix(&prefix) {
+        Some(inner) => inner.to_string(),
+        None => rel,
+    }
+}
+
 pub fn repo_relative(root: &std::path::Path, path: &std::path::Path) -> String {
     let normalised = crate::project::normalise(path);
     let stripped = normalised

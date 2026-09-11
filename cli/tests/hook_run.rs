@@ -2393,3 +2393,59 @@ fn subagent_stop_still_blocks_on_prose_around_the_envelope() {
     assert_eq!(exit_of(&out), 2, "prose beside the object is still refused");
     assert_eq!(hook_json(&out)["decision"], "block");
 }
+
+#[test]
+fn pre_tool_use_allows_a_declared_path_under_the_worktree() {
+    let _home = TrustHome::pinned();
+    let p = Project::new();
+    p.write(
+        ".devforgeai/stories/STORY-014.md",
+        &common::story(
+            "STORY-014",
+            "building",
+            &[],
+            "# Checkout\n\n## Files\n\n| Path | Kind | Layer |\n|---|---|---|\n| tests/application/checkout/place_order_spec.ext | test | application |\n",
+        ),
+    );
+    std::fs::create_dir_all(p.root().join("wt").join("STORY-014")).expect("mkdir");
+    let mut s = p.state();
+    s.current.phase = "build".to_string();
+    s.current.id = "STORY-014".to_string();
+    s.active.build = "STORY-014".to_string();
+    s.worktree = vec![devforgeai::state::WorktreeEntry {
+        story: "STORY-014".to_string(),
+        path: "wt/STORY-014".to_string(),
+        branch: "story/STORY-014".to_string(),
+        created_at: "2026-09-10T14:02:11Z".to_string(),
+    }];
+    p.write_state(&s);
+
+    // `## Files` names paths relative to the story's own checkout, so the
+    // root-relative `wt/STORY-014/tests/...` has to lose its prefix before the
+    // comparison. Without it every declared file in the worktree was refused.
+    let declared = p
+        .root()
+        .join("wt/STORY-014/tests/application/checkout/place_order_spec.ext");
+    let out = dispatch(
+        &p,
+        "pre-tool-use",
+        &serde_json::json!({
+            "tool_name": "Write",
+            "tool_input": { "file_path": declared.display().to_string(), "content": "x\n" }
+        }),
+    );
+    assert_eq!(exit_of(&out), 0, "{:?}", out.warnings);
+
+    // And the guard still refuses what the story never declared.
+    let sneaky = p.root().join("wt/STORY-014/src/sneaky.rs");
+    let out = dispatch(
+        &p,
+        "pre-tool-use",
+        &serde_json::json!({
+            "tool_name": "Write",
+            "tool_input": { "file_path": sneaky.display().to_string(), "content": "x\n" }
+        }),
+    );
+    assert_eq!(exit_of(&out), 2);
+    assert!(out.warnings.iter().any(|d| d.code == "DFA-E239"));
+}

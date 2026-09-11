@@ -990,3 +990,178 @@ fn the_declared_set_diff_sees_nothing_from_the_main_checkout() {
     let (code, _, err) = run(&p, &h, &["story", "files", "--diff", "--id", "STORY-014"]);
     assert_eq!(code, 0, "stderr was {err}");
 }
+
+// --- the declared set is read against the story's own checkout ------------
+
+/// A repo whose STORY-014 worktree is open and active, with the story
+/// declaring one nested test file.
+fn worktree_build() -> (Project, Home) {
+    let p = repo();
+    let h = Home::new();
+    p.write(
+        ".devforgeai/stories/STORY-014.md",
+        &story(
+            "STORY-014",
+            &["tests/application/checkout/place_order_spec.ext"],
+        ),
+    );
+    run(&p, &h, &["worktree", "ensure", "STORY-014"]);
+    run(&p, &h, &["phase", "set", "build", "--id", "STORY-014"]);
+    (p, h)
+}
+
+#[test]
+fn a_declared_path_under_the_worktree_is_allowed() {
+    let (p, _h) = worktree_build();
+    let declared = worktree_dir(&p, "STORY-014")
+        .join("tests")
+        .join("application")
+        .join("checkout")
+        .join("place_order_spec.ext");
+
+    let mut ctx = p.ctx();
+    let args = devforgeai::cli::StoryFilesArgs {
+        check: Some(declared),
+        list: false,
+        diff: false,
+        id: None,
+        base: None,
+    };
+    let out = devforgeai::cmd::story::files(&mut ctx, &args).expect("outcome");
+
+    // `## Files` names paths relative to the story's own checkout, so the
+    // root-relative `wt/STORY-014/tests/...` has to lose its prefix before the
+    // comparison. Without that every declared file in the worktree was
+    // refused.
+    assert_eq!(out.exit.unwrap_or(0), 0, "{:?}", out.warnings);
+    assert_eq!(
+        out.data["path"],
+        "tests/application/checkout/place_order_spec.ext"
+    );
+    assert_eq!(out.data["allowed"], true);
+}
+
+#[test]
+fn an_undeclared_path_under_the_worktree_is_refused() {
+    let (p, _h) = worktree_build();
+    let sneaky = worktree_dir(&p, "STORY-014").join("src").join("sneaky.rs");
+
+    let mut ctx = p.ctx();
+    let args = devforgeai::cli::StoryFilesArgs {
+        check: Some(sneaky),
+        list: false,
+        diff: false,
+        id: None,
+        base: None,
+    };
+    let out = devforgeai::cmd::story::files(&mut ctx, &args).expect("outcome");
+
+    assert_ne!(out.exit.unwrap_or(0), 0, "the guard still holds");
+    let d = out
+        .warnings
+        .iter()
+        .find(|d| d.code == "DFA-E239")
+        .expect("the refusal");
+    assert!(
+        d.message.contains("src/sneaky.rs"),
+        "named against the worktree, not the root: {}",
+        d.message
+    );
+}
+
+// --- commit runs git in the story's own checkout --------------------------
+
+/// Write and commit a declared file inside the worktree, then change it again
+/// so there is something to stage.
+fn dirty_worktree(p: &Project) -> std::path::PathBuf {
+    let wt = worktree_dir(p, "STORY-014");
+    let f = wt
+        .join("tests")
+        .join("application")
+        .join("checkout")
+        .join("place_order_spec.ext");
+    std::fs::create_dir_all(f.parent().expect("parent")).expect("mkdir");
+    std::fs::write(&f, "spec\n").expect("write");
+    f
+}
+
+#[test]
+fn commit_accepts_worktree_relative_paths() {
+    let (p, h) = worktree_build();
+    dirty_worktree(&p);
+
+    let (code, _, err) = run(
+        &p,
+        &h,
+        &[
+            "commit",
+            "STORY-014",
+            "-m",
+            "the spec",
+            "--paths",
+            "tests/application/checkout/place_order_spec.ext",
+        ],
+    );
+    assert_eq!(code, 0, "stderr was {err}");
+}
+
+#[test]
+fn commit_accepts_the_root_relative_spelling() {
+    let (p, h) = worktree_build();
+    dirty_worktree(&p);
+
+    // The hook reports paths with the `wt/<story>/` prefix, so a caller who
+    // copies one means the same file.
+    let (code, _, err) = run(
+        &p,
+        &h,
+        &[
+            "commit",
+            "STORY-014",
+            "-m",
+            "the spec",
+            "--paths",
+            "wt/STORY-014/tests/application/checkout/place_order_spec.ext",
+        ],
+    );
+    assert_eq!(code, 0, "stderr was {err}");
+}
+
+#[test]
+fn commit_with_no_paths_stages_the_worktree_not_the_root() {
+    let (p, h) = worktree_build();
+    dirty_worktree(&p);
+    // Noise in the main checkout: running git there staged whatever it held.
+    p.write("coverage/cobertura.xml", "<coverage/>\n");
+    p.write(".claude/dfa-home/claude-config/.claude.json", "{}\n");
+
+    let (code, _, err) = run(&p, &h, &["commit", "STORY-014", "-m", "the spec"]);
+    assert_eq!(code, 0, "stderr was {err}");
+
+    // The commit landed on the worktree's branch and holds the declared file
+    // alone.
+    let wt = worktree_dir(&p, "STORY-014");
+    let listed =
+        String::from_utf8_lossy(&git_in(&wt, &["show", "--name-only", "--format=", "HEAD"]).stdout)
+            .to_string();
+    assert!(
+        listed.contains("tests/application/checkout/place_order_spec.ext"),
+        "the declared file was staged: {listed}"
+    );
+    assert!(!listed.contains("cobertura.xml"), "{listed}");
+    assert!(!listed.contains(".claude.json"), "{listed}");
+}
+
+#[test]
+fn commit_still_refuses_an_undeclared_path_by_name() {
+    let (p, h) = worktree_build();
+    dirty_worktree(&p);
+    let wt = worktree_dir(&p, "STORY-014");
+    std::fs::create_dir_all(wt.join("src")).expect("mkdir");
+    std::fs::write(wt.join("src").join("sneaky.rs"), "fn s() {}\n").expect("write");
+
+    let (code, _, err) = run(&p, &h, &["commit", "STORY-014", "-m", "the spec"]);
+    assert_eq!(code, 1, "the declared-set guard still holds");
+    assert!(err.contains("DFA-E239"), "stderr was {err}");
+    assert!(err.contains("src/sneaky.rs"), "named by path: {err}");
+}
