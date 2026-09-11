@@ -771,7 +771,7 @@ Every stderr line has the form `devforgeai: <code> <subcommand>: <message>`, fol
 | DFA-E901 | any | atomic rename failed | `replacing <path> failed: <io message>; the temporary file is <tmp>` | 5 |
 | DFA-W130 | hook install | a Claude hook entry is already present | `<event> hook already present; left unchanged` | 0 |
 | DFA-W201 | doc validate | `consumes` lists an ID the body does not cite | `<path> consumes <ID>, which the body does not cite` | 0 |
-| DFA-W210 | phase set | the document whose status the phase advances is absent | `status not written; <path> not found` | 0 |
+| DFA-W210 | phase set, gate require | the document whose status the phase advances is absent | `status not written; <path> not found` | 0 |
 | DFA-W202 | doc validate | body cites an ID absent from `consumes` | `<path> cites <ID>, which consumes does not list` | 0 |
 | DFA-E340 | gate check | `no_cycle` found a cycle | `deferral cycle: <A> -> <B> -> <A>` | 1 |
 | DFA-W243 | commit | the stage set is empty | `no declared path changed; nothing committed` | 0 |
@@ -920,9 +920,13 @@ The predecessor is the `requires` key of the `<phase>` gate; an empty string exi
 | `gate require plan <EPIC-nnn \| SPRINT-nnn>` | `constitute` | the `IDEA-nnn` at the top-level `id` of `requirements.yaml`, the document whose `epics[]` holds the epic; a `SPRINT-nnn` argument resolves to its epic through `sprint.yaml` `epic` first | `reports/<IDEA-nnn>-constitute.yaml` |
 | `gate require build <STORY-nnn>` | `plan` | the `SPRINT-nnn` of the `stories/sprint.yaml` whose `stories[]` or `deferred[]` lists the story; a story listed in no sprint is `DFA-E013`, exit 3 | `reports/<SPRINT-nnn>-plan.yaml` |
 | `gate require verify <STORY-nnn>` | `build` | the same `STORY-nnn` | `reports/<STORY-nnn>-build.yaml` |
-| `gate require release <vX.Y.Z>` | `verify` | every `STORY-nnn` under `stories` in `releases/<vX.Y.Z>.yaml` | one `reports/<STORY-nnn>-verify.yaml` per story; every one passes or the call fails |
+| `gate require release <vX.Y.Z>` | `verify` | every `STORY-nnn` under `stories` in `releases/<vX.Y.Z>.yaml`, or, when that file is absent, every `stories[].id` of `stories/sprint.yaml` | one `reports/<STORY-nnn>-verify.yaml` per story; every one passes or the call fails |
 | `gate require reflect <window>` | none | — | none; exit 0, since `requires` is `""`. The arm imposes no id shape: a Reflect window is a date, an `IDEA-nnn`, an `EPIC-nnn`, a `STORY-nnn`, or a version |
 | `gate require design <id>` | — | — | exit 1 with `DFA-E300`; Design is not a phase and holds no gate, and `gate check --phase design` fails the same way |
+
+**The first release.** `gate require release` runs before `releases/<vX.Y.Z>.yaml` exists, because the Release skill writes that file during the run the gate opens. An absent manifest is therefore `DFA-W210`, exit 0, and the story set is taken from `stories/sprint.yaml` `stories[].id` instead. That is a fallback in where the list comes from and not in what is checked: every story the sprint names still has its `reports/<STORY-nnn>-verify.yaml` read, and a story short of `PASS` still refuses the call with `DFA-E321`. With the sprint absent too the call exits 0 with the warning and no reports read, and the run stops one step later — `phase set` refuses to advance on a story set that read empty, so an empty read never stands in for a passing one.
+
+A manifest that is present and will not parse is not this case: it stays `DFA-E200` or `DFA-E401`. The fallback answers a file that does not exist yet; a file that exists and is broken is a defect to repair, and reading the sprint instead would hide it.
 
 Explore and Discover are entry phases. When the predecessor report named above is absent and the predecessor is `none`, the call exits 0; when the predecessor exists and its report is absent or not `PASS`, the call exits 1 with `DFA-E321`. The gate passes when every report read carries `gate.result: PASS`.
 

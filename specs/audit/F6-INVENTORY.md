@@ -218,3 +218,11 @@ Each fact read from `evals/runner/run_jsonl.py` before it was written. The per-c
 The `epics[]` constraint moved from "one sentence containing one number and one unit" to the skill's own "one sentence carrying one measurable quantity, its unit or count, and a comparison; at least one digit". The round-2 question template fence is byte-identical to `templates/questions.md`, verified after the edit.
 
 Acceptance status added to `questions.md` Q-022: Explore, Design, Reflect and Plan pass end to end headless; Discover and Verify complete the workflow and fail on content — a non-numeric `success_metric`, which is the defect the suite exists to find, and a `Next` line only the Stop hook renders, which is unmeasurable until the Q-016 pin exists; Build waits on a fixture and Release on a CLI fix.
+
+## Fifth pass — F1's first-release case
+
+`specs/01-cli.md` `### gate require <phase> <id>`: the release row's subject column gains the `stories/sprint.yaml` `stories[].id` fallback, and a new paragraph before the entry-phase note states the first-release case — an absent `releases/<version>.yaml` is `DFA-W210` at exit 0 with the story set read from the sprint; every named story's verify report is still read and a story short of PASS still refuses with `DFA-E321`; an absent sprint too exits 0 with the warning and no reports, and `phase set` refuses to advance on the empty read; a present-but-unparsable manifest stays `DFA-E200`/`DFA-E401`, because the fallback answers a file that does not exist yet and reading the sprint instead would hide a broken one.
+
+The `DFA-W210` error-table row's `subcommand` column now reads `phase set, gate require`. Safe for the bijection test by inspection: `cli/tests/errors_table.rs:26-43` parses `cells[0]` and `cells[4]` only, asserting five columns, and a comma adds no column.
+
+The per-case `timeout` key has landed in the runner, so the fourth pass's note that it was written ahead of the code no longer applies; no verify marker was ever added to the file.
