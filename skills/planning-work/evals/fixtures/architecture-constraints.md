@@ -35,3 +35,16 @@ open_questions: []
 | CON | Kind | Status | Title | Source | Introduced by | Enforced by |
 |---|---|---|---|---|---|---|
 | CON-003 | layering | active | Single write path | REQ-001 | ADR-001 | none |
+
+### CON-001 A rule CON-001 names
+
+| Field | Value |
+|---|---|
+| kind | layering |
+| status | active |
+| statement | A rule CON-001 names. |
+| source | REQ-007 |
+| introduced_by | ADR-003 |
+| enforced_by | none |
+| CON-001 | layering | active | A rule CON-001 names | REQ-007 | ADR-003 | none |
+

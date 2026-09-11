@@ -1,0 +1,55 @@
+schema: devforgeai/requirements/1
+id: IDEA-004
+phase: discover
+status: accepted
+produced_by: discovering-requirements
+consumes: [IDEA-004]
+open_questions: []
+revision: 1
+revision_log: []
+accepted_by: user
+accepted_at: 2026-09-10T14:22:05Z
+personas:
+  - id: PERSONA-001
+    name: Operator
+    description: The person this phase's fixtures act for.
+    goal: Finish the phase without re-entering what is already recorded.
+epics:
+  - id: EPIC-001
+    title: The fixture epic
+    scope: Whatever the seeded documents of this phase cite.
+    out_of_scope:
+      - Nothing beyond the ids these fixtures name.
+    success_metric: Every cited id resolves to a definition.
+    requirements: [REQ-001, REQ-002, REQ-004]
+requirements:
+  - id: REQ-001
+    actor: PERSONA-001
+    statement: The operator completes the step REQ-001 names.
+    rationale: A context file cites REQ-001 as the source of one of its keys.
+    acceptance_signal: The recorded outcome matches what REQ-001 states.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
+  - id: REQ-002
+    actor: PERSONA-001
+    statement: The operator completes the step REQ-002 names.
+    rationale: A context file cites REQ-002 as the source of one of its keys.
+    acceptance_signal: The recorded outcome matches what REQ-002 states.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
+  - id: REQ-004
+    actor: PERSONA-001
+    statement: The operator completes the step REQ-004 names.
+    rationale: A context file cites REQ-004 as the source of one of its keys.
+    acceptance_signal: The recorded outcome matches what REQ-004 states.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []

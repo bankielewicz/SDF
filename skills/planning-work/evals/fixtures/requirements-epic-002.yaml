@@ -33,3 +33,23 @@ requirements:
     status: accepted
     open_questions: []
     traces_to: []
+  - id: REQ-001
+    actor: PERSONA-001
+    statement: The operator completes the step REQ-001 names.
+    rationale: A seeded context document cites REQ-001 as its source.
+    acceptance_signal: The recorded outcome matches what REQ-001 states.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
+  - id: REQ-007
+    actor: PERSONA-001
+    statement: The operator completes the step REQ-007 names.
+    rationale: A seeded context document cites REQ-007 as its source.
+    acceptance_signal: The recorded outcome matches what REQ-007 states.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []

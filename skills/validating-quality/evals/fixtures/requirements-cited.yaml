@@ -1,0 +1,75 @@
+schema: devforgeai/requirements/1
+id: IDEA-004
+phase: discover
+status: accepted
+produced_by: discovering-requirements
+consumes: [IDEA-004]
+open_questions: []
+revision: 1
+revision_log: []
+accepted_by: user
+accepted_at: 2026-09-10T14:22:05Z
+personas:
+  - id: PERSONA-001
+    name: Operator
+    description: The person this phase's fixtures act for.
+    goal: Finish the phase without re-entering what is already recorded.
+epics:
+  - id: EPIC-001
+    title: The fixture epic
+    scope: Whatever the seeded documents of this phase cite.
+    out_of_scope:
+      - Nothing beyond the ids these fixtures name.
+    success_metric: Every cited id resolves to a definition.
+    requirements: [REQ-005, REQ-007, REQ-009, REQ-011]
+requirements:
+  - id: REQ-005
+    actor: PERSONA-001
+    statement: The operator completes the step REQ-005 names.
+    rationale: A context file cites REQ-005 as the source of one of its keys.
+    acceptance_signal: The recorded outcome matches what REQ-005 states.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
+  - id: REQ-007
+    actor: PERSONA-001
+    statement: The operator completes the step REQ-007 names.
+    rationale: A context file cites REQ-007 as the source of one of its keys.
+    acceptance_signal: The recorded outcome matches what REQ-007 states.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
+  - id: REQ-009
+    actor: PERSONA-001
+    statement: The operator completes the step REQ-009 names.
+    rationale: A context file cites REQ-009 as the source of one of its keys.
+    acceptance_signal: The recorded outcome matches what REQ-009 states.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
+  - id: REQ-011
+    actor: PERSONA-001
+    statement: The operator completes the step REQ-011 names.
+    rationale: A context file cites REQ-011 as the source of one of its keys.
+    acceptance_signal: The recorded outcome matches what REQ-011 states.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
+  - id: REQ-008
+    actor: PERSONA-001
+    statement: The operator completes the step REQ-008 names.
+    rationale: A seeded document cites REQ-008 as its source.
+    acceptance_signal: The recorded outcome matches what REQ-008 states.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
