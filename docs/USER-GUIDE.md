@@ -1426,7 +1426,7 @@ Global options on every subcommand: `--json` (one machine envelope on stdout, no
 | `devforgeai doc accept requirements --id <IDEA-nnn>` | Discover step 14 |
 | `devforgeai doc reopen requirements --id <IDEA-nnn> --ids <ID,ID> --from <phase>` | Discover step C2 |
 | `devforgeai phase set <phase> --id <id> [--remedy <ID,ID>] [--epic <EPIC-nnn>]` | every phase; refuses unless `gate require` would pass |
-| `devforgeai story validate [<id>] [--scope active\|sprint\|all]` | the Plan gate's `plan-stories` check. With no active id for the phase it reports `DFA-E412` and exits non-zero, so a run that never set its phase is a visible failure rather than a silent pass |
+| `devforgeai story validate [<id>] [--scope active\|sprint\|all]` | the Plan gate's `plan-stories` check. With no `<id>` and no `[active].build` it reports `DFA-E011` and exits 3, so a run that never set its phase is a usage error rather than a silent pass |
 | `devforgeai story files [--check <path>] [--list] [--diff] [--id <id>] [--base <ref>]` | `PreToolUse` during Build, and Build steps 9 and 11 |
 | `devforgeai worktree ensure <id>` | Build step 4 |
 | `devforgeai commit <id> -m <message> [--paths <p,p>]` | Build steps 7.3, 7.6, 7.8, 8, 10 |

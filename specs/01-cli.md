@@ -755,7 +755,7 @@ Every stderr line has the form `devforgeai: <code> <subcommand>: <message>`, fol
 | DFA-E400 | report show, handoff | report absent | `.devforgeai/reports/<id>-<phase>.yaml not found` | 1 |
 | DFA-E401 | report show, gate check, handoff, report aggregate | report unparsable | `<path> is not valid YAML: <parser message>` | 1 |
 | DFA-E410 | report ingest | stdout is not the verifier JSON | `subagent '<name>' output is not devforgeai/verifier/1: <parser message>` | 0 |
-| DFA-E412 | report ingest, story validate | no active ID for the verifier's phase | `state.toml has no active id for phase '<phase>'; nothing ingested` | 0 |
+| DFA-E412 | report ingest, story files --check | no active ID for the verifier's phase | `state.toml has no active id for phase '<phase>'; nothing ingested` | 0 |
 | DFA-E413 | report note | the note file fails the `devforgeai/build-note/1` schema | `<path> key '<key>' is <found>, expected <expected>; nothing written` | 1 |
 | DFA-E421 | report aggregate | the session root resolves outside the user's home | `session root '<path>' is outside <home>; sessions unreadable` | 1 |
 | DFA-E430 | report aggregate | neither or both of `<ID>` and `--since` | `pass one id (IDEA-nnn, EPIC-nnn, STORY-nnn, vX.Y.Z) or --since <YYYY-MM-DD>` | 3 |
@@ -1088,7 +1088,9 @@ Keys, in this order, first in the document, and with no other top-level key in t
 
 #### ID index, definitions, references
 
-The index is built by walking `.devforgeai/`. An ID is *defined* by any of: the frontmatter `id` of a document; an ID at the start of a Markdown heading line, as in `### AC-003 …`; a Markdown list item whose text begins `<PREFIX>-<nnn>:` at the start of the line, which is the acceptance-criterion form `- AC-003: Given …`; a mapping key `id:` inside a YAML sequence item; and the id cell of a Markdown table row, the first cell when it holds an id alone. That last form is what makes `## Core flows` define its `FLOW-nnn` ids: the brief states them nowhere else, and without it every flow id in the framework was a reference to a definition that does not exist. Every other occurrence of the pattern is a *reference*, with one exception: `PREFIX-000` is neither. The `000` suffix is the placeholder a template uses for an example entry (`ADR-000`, `STORY-000`), so it is never indexed as a definition and never reported as an unresolved reference. A real id starts at `001`, which is what `doc validate --allocate` returns for an unused prefix. A reference with no definition is `DFA-E210`. A definition appearing twice is `DFA-E209`. An entry of `consumes` with no definition is `DFA-E210`. `DFA-W201` and `DFA-W202` report the two directions of drift between `consumes` and the body.
+The index is built by walking `.devforgeai/`. An ID is *defined* by any of: the frontmatter `id` of a document; an ID at the start of a Markdown heading line, as in `### AC-003 …`; a Markdown list item whose text begins `<PREFIX>-<nnn>:` at the start of the line, which is the acceptance-criterion form `- AC-003: Given …`; a mapping key `id:` inside a YAML sequence item; and a Markdown table row's cell in a column whose header is `ID`. That fourth form is what makes `## Core flows` define its `FLOW-nnn` ids: the brief states them nowhere else, and without it every flow id was a reference to a definition that does not exist. The column header is what scopes it, and the scoping is load-bearing rather than tidiness — the `## Mockups` table also leads with a `FLOW-nnn`, in a column headed `Flow`, and reading that as a second definition would make every flow a duplicate and raise `DFA-E209`. A cell in any other column is a reference like any other occurrence.
+
+Every other occurrence of the pattern is a *reference*, with one exception: `PREFIX-000` is neither defined nor referenced. The `000` suffix is the placeholder a template uses for an example entry — `ADR-000`, `STORY-000` — so it is never indexed and never reported unresolved. A real id starts at `001`, which is what `doc validate --allocate` returns for an unused prefix. A reference with no definition is `DFA-E210`. A definition appearing twice is `DFA-E209`. An entry of `consumes` with no definition is `DFA-E210`. `DFA-W201` and `DFA-W202` report the two directions of drift between `consumes` and the body. `DFA-W202`, the body-cites-what-`consumes`-omits direction, skips every id the document defines itself: a brief that defines `FLOW-001` in `## Core flows` and mentions it in `## Non-goals` is citing its own id, and `consumes` is for what a document takes from elsewhere.
 
 `--allocate <prefix>` reads the index, takes the highest numeric suffix for the prefix, adds one, and reserves the result on disk before printing it. An unused prefix returns `<prefix>-001`. A prefix whose highest number is `999` is `DFA-E215`. The prefix is one of the sixteen §5 prefixes: `IDEA`, `FLOW`, `PERSONA`, `REQ`, `EPIC`, `CON`, `AP`, `ADR`, `STORY`, `AC`, `SPRINT`, `UI`, `TOKEN`, `FIND`, `OBS`, `REC`; any other prefix is `DFA-E214`.
 
@@ -1489,7 +1491,9 @@ Checks per story:
 
 Human output: one line per story, `ok  STORY-014  5 ACs  1 dependency`.
 
-Exit codes: 0 when every story passes; 1 on any `DFA-E23x` or `DFA-E2xx`; 3 on `DFA-E012`, `DFA-E013`; 5 on `DFA-E9xx`.
+**No subject, no validation.** With no `<id>` argument the subject is `state.toml` `[active].build`, and with that empty there is nothing to validate. That is `DFA-E011`, exit 3 — a required argument is absent, which is a usage error and not a clean pass. The earlier shape reported `DFA-E412` at exit 0, so a run that never set its phase looked like a suite where every story passed. `story files --check` keeps its own `DFA-E412` at exit 0 deliberately and is not the same case: it runs from the `PreToolUse` hook on every write, and a non-zero there would block every edit made outside a Build run.
+
+Exit codes: 0 when every story passes; 1 on any `DFA-E23x` or `DFA-E2xx`; 3 on `DFA-E011`, `DFA-E012`, `DFA-E013`; 5 on `DFA-E9xx`.
 
 ### `design lint`
 
