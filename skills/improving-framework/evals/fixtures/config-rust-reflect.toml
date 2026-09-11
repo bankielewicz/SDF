@@ -3,17 +3,22 @@ generated_at = "2026-09-11T09:14:02Z"
 cli_version = "1.0.0"
 degraded = false
 
+# The gate spawns a configured command through the platform shell, and
+# on Windows `cmd` cannot execute a shebang script: `./ci/test` is
+# DFA-E311 there and works from bash, which is how it passed a manual
+# check and failed a real run. `sh ci/test` runs the same script on
+# both platforms.
 [[stack]]
 id = "primary"
 markers = ["project.manifest"]
 package_manager = ""
 source_roots = ["src"]
-test_command = "./ci/test"
-coverage_command = "./ci/coverage"
+test_command = "sh ci/test"
+coverage_command = "sh ci/coverage"
 coverage_format = "cobertura"
 coverage_paths = ["coverage/cobertura.xml"]
-lint_command = "./ci/lint"
-complexity_command = "./ci/complexity"
+lint_command = "sh ci/lint"
+complexity_command = "sh ci/complexity"
 timeout_secs = 900
 env = {}
 

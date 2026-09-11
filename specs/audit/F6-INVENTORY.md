@@ -226,3 +226,21 @@ Acceptance status added to `questions.md` Q-022: Explore, Design, Reflect and Pl
 The `DFA-W210` error-table row's `subcommand` column now reads `phase set, gate require`. Safe for the bijection test by inspection: `cli/tests/errors_table.rs:26-43` parses `cells[0]` and `cells[4]` only, asserting five columns, and a comma adds no column.
 
 The per-case `timeout` key has landed in the runner, so the fourth pass's note that it was written ahead of the code no longer applies; no verify marker was ever added to the file.
+
+## Sixth pass — F5's runner facts, F4's release template, F1's aggregate codes
+
+| Item | Read at | Where it landed |
+|---|---|---|
+| SEND BACK floor exempts entry and terminal phases | `ex-09-blocked-prefix-exhausted` and `rf-08-blocked-bad-window` confirmed present in the two `cases.jsonl` | conventions §9: Explore is phase 0 with nothing upstream, Reflect emits none and receives none (no gate carries `send_back_to = "reflect"`), each carrying one documented stop-path case instead |
+| `preflight` object form | `run_jsonl.py:1031-1069` | conventions §9 case shape and `01-cli` `## Evals`, with the three real examples — Explore's `code: DFA-E215`, Build's `exit: "any"` + `forbid_code: DFA-E311`, Release's `exit: 1` + `code: DFA-E320` |
+| `timeout`, `answers`, `setup.git` in the case shape | `run_jsonl.py` docstring, `parse_args` | conventions §9, each with what it is for |
+| fixtures-read exception | `run_jsonl.py:342-351` | was **absent** from §9; added — `FIXTURE:<name>` reads `<skill>/evals/fixtures/<name>`, the one file a case reads that the runner does not copy into the workspace |
+| tamper guard | `run_jsonl.py:636-680, 997-1000, 1241-1259` | `01-cli` `## Evals`: four guarded paths, `status: tampered` overriding the grader, `state.toml` exempt from equality and reported only when deleted, the `tampered` field on the result line, the seventh summary column, and exit 2 |
+| build and release `cases.jsonl` fences | the files | copied verbatim; release is 10 lines now, not 9, and the heading's count was corrected. `rl-05` had already landed as `rl-05-blocked-verify-fail` with the `DFA-E320` preflight, so no verify marker was needed |
+| `release.yaml` template | `skills/releasing-software/templates/release.yaml` | `## Templates` fence mirrored byte for byte, 41 → 49 lines; the workflow's step 4 now says the entry shape is the template's and names its eight keys |
+| Release step 2 `DFA-E320`, two send-back surfaces | `skills/releasing-software/SKILL.md:38` and its `## Send-back` | `09-release` step 2 and `## Send-back`, which now distinguishes the step-2 refusal (not a send-back: nothing is written and no page is touched) from the step-13 gate send-back |
+| a non-id window token is `DFA-E013` | `cli/src/aggregate.rs:110-124`, `subject_ok` at `:265` | `01-cli` `report aggregate` and its exit-code line, `10-reflect` step 1, the `## Command` note and the CLI-calls row |
+
+On the last item the mechanism is worth stating exactly, because the ordering in the code is the reverse of the outcome: the `DFA-E430` neither-or-both check runs first, but a lone non-id token *satisfies* it — exactly one of the two was given — so it falls through to `subject_ok` and fails there with `DFA-E013`. The specs now say that rather than implying `DFA-E430` is skipped.
+
+All six fences that must match a shipped file — `reflect-report.yaml`, `rec-targets.md`, `release.yaml`, both `cases.jsonl`, and Discover's `questions.md` — verified byte-identical after the edits.

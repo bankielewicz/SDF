@@ -7,7 +7,15 @@ consumes: []
 open_questions: []
 previous_version: ""
 released_at: ""
-stories: []
+stories:
+  - id: STORY-000
+    title: <the story's first H1 with the leading id and separator removed>
+    status: built
+    qa_report: .devforgeai/reports/STORY-000-qa.yaml
+    verify_report: .devforgeai/reports/STORY-000-verify.yaml
+    verify_result: PASS
+    requirements: []
+    deferrals: []
 artifacts: []
 platform:
   target: none

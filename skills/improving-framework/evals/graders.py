@@ -529,3 +529,34 @@ def handoff_returns(workspace, transcript, args):
         raise _Fail(why)
     return True, "%d lines; Next %r; Then %r; %s" % (
         len(block), values.get("Next"), values.get("Then"), why)
+
+
+def blocked_on_preamble(workspace, transcript, args):
+    """The preamble refused the arguments and the run wrote no report.
+
+    Conventions section 9 asks each skill for two SEND BACK cases. Reflect emits
+    none and receives none — `## Send-back` says so, and gives the reason: a
+    `REC-nnn` is prose, not a gate result. Its comparable accountability is the
+    documented preamble refusal: `$ARGUMENTS` naming neither an id prefix nor
+    `--since` makes `report aggregate` exit 3 on `DFA-E430`, and a non-zero exit
+    from a `!` injection aborts the whole skill invocation. The artifact half is
+    that `reports/` gained no `reflect-<date>.yaml`.
+    """
+    code = args.get("code", "DFA-E430")
+    if code not in transcript:
+        return False, "the transcript never names %s" % code
+
+    root = os.path.join(workspace, ".devforgeai", "reports")
+    written = []
+    if os.path.isdir(root):
+        written = [n for n in sorted(os.listdir(root))
+                   if n.startswith("reflect-") and n.endswith(".yaml")]
+    if written:
+        return False, ("reports/ holds %s; a refused preamble aborts the skill "
+                       "before step 9 writes one" % ", ".join(written))
+
+    for rel in args.get("absent", []):
+        if os.path.exists(os.path.join(workspace, *rel.split("/"))):
+            return False, "%s was written; the run was supposed to stop" % rel
+
+    return True, "%s reached the transcript, no reflect document written" % code

@@ -781,3 +781,43 @@ def asked_decision(workspace, transcript, args):
                   "and AskUserQuestion was not in the tool set" % (
                       header, ", ".join(labels),
                       value if artifact else "n/a"))
+
+
+def blocked_on_cli(workspace, transcript, args):
+    """The run stopped on a CLI refusal and wrote none of the phase's documents.
+
+    Conventions section 9 asks each skill for two SEND BACK cases. Explore is
+    phase 0: `## Send-back` states it plainly — "This phase sends nothing back.
+    It is Phase 0: there is no upstream document to cite." The comparable
+    accountability is the stop path the same section documents: a CLI call
+    refuses, the run halts with one `Blocked` line carrying the binary's stderr,
+    and nothing is written. This grader is that case's, and it has both halves —
+    the line, and the absence of every document the phase would otherwise
+    produce.
+    """
+    code = args.get("code", "")
+    needed = list(args.get("names", []))
+    if code:
+        needed.append(code)
+    matched = None
+    for line in transcript.splitlines():
+        if not line.startswith("Blocked"):
+            continue
+        if all(name in line for name in needed):
+            matched = line.strip()
+            break
+    if matched is None:
+        # The Stop hook renders the block, and an eval runs with hooks off
+        # unless the machine carries a trust pin, so the stderr reaching the
+        # transcript at all is the assertion that survives either way.
+        if not all(name in transcript for name in needed):
+            absent = [n for n in needed if n not in transcript]
+            return False, "the transcript never names %s" % ", ".join(absent)
+        matched = "stderr in the transcript, no Blocked line (hooks off)"
+
+    for rel in args.get("absent", []):
+        path = os.path.join(workspace, *rel.split("/"))
+        if os.path.exists(path):
+            return False, "%s was written; the run was supposed to stop before it" % rel
+
+    return True, "%s; %d documents absent" % (matched, len(args.get("absent", [])))

@@ -758,3 +758,69 @@ def release_notes(workspace, transcript, args):
         notes.append("summary is longer than %s characters" % args.get("summary_max", 72))
 
     return ok, "; ".join(notes)
+
+
+def blocked_at_activation(workspace, transcript, args):
+    """Step 2 refused the version and the run wrote no release.
+
+    `gate require release` reads the verify report of every story the sprint
+    names, so a story short of verify PASS is refused at `phase set release` —
+    where a predecessor gate binds — rather than at the release gate, whose
+    `release-stories` check is the backstop for a release file assembled by
+    other means. The run therefore stops at step 2 with the binary's stderr, and
+    this grader asserts both halves: the refusal reached the transcript naming
+    the failing story, and nothing downstream of it exists.
+    """
+    notes, ok = [], True
+
+    code = args.get("code", "DFA-E320")
+    if code not in transcript:
+        return False, "the transcript never names %s" % code
+    notes.append(code)
+
+    for token in args.get("must_name", []):
+        if token not in transcript:
+            ok = False
+            notes.append("the transcript never names %s" % token)
+
+    # The Stop hook renders the `Blocked` line, and an eval runs with hooks off
+    # unless the machine carries a trust pin, so the line is required when it is
+    # there and the stderr is what carries the assertion when it is not.
+    blocked = [line.strip() for line in transcript.splitlines()
+               if line.startswith("Blocked")]
+    wanted_next = args.get("blocked_names", "")
+    if blocked:
+        if wanted_next and not any(wanted_next in line for line in blocked):
+            ok = False
+            notes.append("no Blocked line names %r; they read %s"
+                         % (wanted_next, blocked))
+        else:
+            notes.append("Blocked: %s" % blocked[0])
+    else:
+        if wanted_next and wanted_next not in transcript:
+            ok = False
+            notes.append("neither a Blocked line nor the transcript names %r"
+                         % wanted_next)
+        notes.append("no Blocked line (hooks off)")
+
+    for rel in args.get("absent", []):
+        if _exists(workspace, rel):
+            ok = False
+            notes.append("%s exists and the run was refused before writing it" % rel)
+
+    for rel in args.get("stories_not_released", []):
+        if not _exists(workspace, rel):
+            ok = False
+            notes.append("%s is absent" % rel)
+            continue
+        status = _frontmatter(_read(workspace, rel)).get("status")
+        if status == "released":
+            ok = False
+            notes.append("%s moved to released" % rel)
+
+    held, why = _phase_report_not_pass(workspace, args.get("report_phase", "release"))
+    notes.append(why)
+    if not held:
+        ok = False
+
+    return ok, "; ".join(notes)

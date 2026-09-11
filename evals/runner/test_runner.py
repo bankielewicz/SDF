@@ -524,6 +524,80 @@ class RunnerTestCase(unittest.TestCase):
             "type": "result", "result": "the tool crashed", "is_error": True}))
         self.assertIsNone(run_jsonl.LIMIT_RE.search(other["result_text"]))
 
+    def test_a_run_that_rewrites_a_guarded_file_is_recorded_tampered(self):
+        before = {".devforgeai/gates.toml": "a" * 64,
+                  ".devforgeai/config.toml": "b" * 64,
+                  ".devforgeai/state.toml": "c" * 64,
+                  ".claude/settings.json": "d" * 64}
+        self.assertEqual(run_jsonl.tampering(before, dict(before)), "")
+        # state.toml is rewritten by `phase set` on every run; that is the run
+        # working, not tampering.
+        moved = dict(before, **{".devforgeai/state.toml": "e" * 64})
+        self.assertEqual(run_jsonl.tampering(before, moved), "")
+        # A deleted state.toml is nobody's doing but the model's.
+        gone = dict(before, **{".devforgeai/state.toml": None})
+        self.assertIn("state.toml", run_jsonl.tampering(before, gone))
+        for guarded in (".devforgeai/gates.toml", ".devforgeai/config.toml",
+                        ".claude/settings.json"):
+            after = dict(before, **{guarded: "f" * 64})
+            evidence = run_jsonl.tampering(before, after)
+            self.assertIn(guarded, evidence)
+            self.assertIn("aaaaaaaaaaaa" if "gates" in guarded else "", evidence)
+
+    def test_guard_digests_hashes_what_exists_and_nulls_what_does_not(self):
+        workspace = os.path.join(self.root, "guarded")
+        write(os.path.join(workspace, ".devforgeai", "gates.toml"), "gates" + chr(10))
+        digests = run_jsonl.guard_digests(workspace)
+        self.assertEqual(sorted(digests), sorted(run_jsonl.GUARDED))
+        self.assertEqual(len(digests[".devforgeai/gates.toml"]), 64)
+        self.assertIsNone(digests[".claude/settings.json"])
+
+    def test_tampering_overrides_a_passing_grader(self):
+        out = os.path.join(self.root, "results.jsonl")
+        # The fake claude writes claude-ran.txt; point a guarded path at it so
+        # the run itself changes one, which is what a tampering model would do.
+        cases = [{"id": "t1", "prompt": "x",
+                  "setup": {"files": {".devforgeai/gates.toml": "seeded\n"}},
+                  "expect": {"grader": "ok_grader", "args": {}}}]
+        write(self.cases_path,
+              "".join(json.dumps(case) + chr(10) for case in cases))
+        real = run_jsonl.invoke
+
+        def meddling(argv, workspace, home, timeout, prompt, options,
+                     log_dir, case_id):
+            result = real(argv, workspace, home, timeout, prompt, options,
+                          log_dir, case_id)
+            write(os.path.join(workspace, ".devforgeai", "gates.toml"),
+                  "rewritten by the model" + chr(10))
+            return result
+
+        run_jsonl.invoke = meddling
+        self.addCleanup(setattr, run_jsonl, "invoke", real)
+        code, text = self._main(["--out", out])
+        self.assertEqual(code, 2)
+        line = read_lines(out)[-1]
+        self.assertEqual(line["status"], "tampered")
+        self.assertFalse(line["passed"])
+        self.assertIn(".devforgeai/gates.toml", line["tampered"])
+        self.assertIn("grader said pass", line["evidence"])
+        self.assertIn("tampered 1", text)
+
+    def test_no_grader_reads_the_guarded_project_files(self):
+        """A grader that read gates.toml would make tampering profitable."""
+        import glob
+        root = run_jsonl.framework_root()
+        found = sorted(glob.glob(os.path.join(root, "skills", "*", "evals",
+                                              "graders.py")))
+        if not found:
+            self.skipTest("no grader modules here")
+        for path in found:
+            with open(path, encoding="utf-8") as handle:
+                body = handle.read()
+            for guarded in ("gates.toml", "state.toml"):
+                self.assertNotIn(guarded, body,
+                                 "%s reads %s; the tamper guard assumes no "
+                                 "grader does" % (path, guarded))
+
     # -- results.jsonl schema ------------------------------------------------
 
     def test_results_line_schema(self):
@@ -538,7 +612,7 @@ class RunnerTestCase(unittest.TestCase):
                     "duration_ms", "exit_code", "workspace", "workspace_kept",
                     "transcript_bytes", "hooks", "answers", "log_stdout",
                     "log_stderr", "session_id", "total_cost_usd", "num_turns",
-                    "permission_denials", "is_error", "tool_calls"]
+                    "permission_denials", "is_error", "tool_calls", "tampered"]
         run_ids = set()
         for line in lines:
             self.assertEqual(list(line), expected)
@@ -564,7 +638,7 @@ class RunnerTestCase(unittest.TestCase):
         self.assertEqual(by_id["c4"]["evidence"], "grader_missing: absent_grader")
         self.assertEqual(by_id["c5"]["status"], "error")
         self.assertIn("escapes the workspace", by_id["c5"]["evidence"])
-        self.assertIn("cases 5  pass 2  fail 1  error 2  timeout 0  limit 0  "
+        self.assertIn("cases 5  pass 2  fail 1  error 2  timeout 0  limit 0  tampered 0  "
                       "duration", text)
         self.assertIn("cost $", text)
         self.assertIn("FAIL  c3  fail_grader: no marker in the transcript", text)
@@ -879,6 +953,107 @@ class RunnerTestCase(unittest.TestCase):
                 head = handle.read(200)
             self.assertIn('schema = "devforgeai/gates/1"', head, path)
             self.assertIn("cli_min_version", head, path)
+
+    def test_every_fixture_is_referenced_by_a_case_grader_or_digest(self):
+        """No fixture is dead weight, and no digest names a file that has gone.
+
+        `wt-story-014-git.txt` outlived the BLD-07 rewrite, which moved the
+        seeded overlap from a hand-written `.git` file to a real
+        `setup.git.worktrees` entry. `digests.txt` is the one file that is
+        documentation rather than a fixture: it records the recipe and the
+        pinned values, so it is exempt from needing a referrer and is instead
+        required to name only files that exist.
+        """
+        import glob
+        root = run_jsonl.framework_root()
+        skills = sorted(glob.glob(os.path.join(root, "skills", "*", "evals")))
+        if not skills:
+            self.skipTest("no skill tree here")
+        for evals_dir in skills:
+            fixtures_dir = os.path.join(evals_dir, "fixtures")
+            if not os.path.isdir(fixtures_dir):
+                continue
+            blob = ""
+            for name in ("cases.jsonl", "graders.py", "evals.json"):
+                path = os.path.join(evals_dir, name)
+                if os.path.isfile(path):
+                    with open(path, encoding="utf-8") as handle:
+                        blob += handle.read()
+            digests = os.path.join(fixtures_dir, "digests.txt")
+
+    def test_every_public_grader_is_named_by_a_case(self):
+        """No grader is defined and nameless (AUDIT-5 EVL-043).
+
+        A grader nothing calls is either dead weight or the tell that a case was
+        dropped — `design_called` was the only check on the Plan-to-Design
+        hand-off and no case named it. Helpers carry a leading underscore, which
+        is what separates them from graders here.
+        """
+        import glob
+        import importlib.util
+        root = run_jsonl.framework_root()
+        found = sorted(glob.glob(os.path.join(root, "skills", "*", "evals",
+                                              "graders.py")))
+        if not found:
+            self.skipTest("no grader modules here")
+        for path in found:
+            evals_dir = os.path.dirname(path)
+            skill = os.path.basename(os.path.dirname(evals_dir))
+            spec = importlib.util.spec_from_file_location(
+                "check_" + skill.replace("-", "_"), path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            named = set()
+            with open(os.path.join(evals_dir, "cases.jsonl"),
+                      encoding="utf-8") as handle:
+                for line in handle:
+                    if line.strip():
+                        named.add(json.loads(line)["expect"]["grader"])
+            defined = {n for n in dir(module)
+                       if not n.startswith("_")
+                       and callable(getattr(module, n))
+                       and getattr(getattr(module, n), "__module__", "")
+                       == module.__name__}
+            self.assertEqual(sorted(defined - named), [],
+                             "%s defines graders no case names" % path)
+            self.assertEqual(sorted(named - defined), [],
+                             "%s names graders it does not define" % path)
+
+    def test_every_skill_meets_the_send_back_floor_or_documents_why(self):
+        """Conventions section 9 wants two SEND BACK cases per skill.
+
+        Explore and Reflect can have none — each `## Send-back` says so in
+        terms: Explore is phase 0 with no upstream document to cite, and a
+        Reflect `REC-nnn` is prose rather than a gate result. Both carry a
+        documented stop-path case instead, which is what this asserts.
+        """
+        import glob
+        root = run_jsonl.framework_root()
+        paths = sorted(glob.glob(os.path.join(root, "skills", "*", "evals",
+                                              "cases.jsonl")))
+        if not paths:
+            self.skipTest("no case files here")
+        exempt = {"exploring-ideas": "blocked_on_cli",
+                  "improving-framework": "blocked_on_preamble"}
+        for path in paths:
+            skill = os.path.basename(os.path.dirname(os.path.dirname(path)))
+            graders, sendbacks = [], 0
+            with open(path, encoding="utf-8") as handle:
+                for line in handle:
+                    if not line.strip():
+                        continue
+                    case = json.loads(line)
+                    graders.append(case["expect"]["grader"])
+                    blob = json.dumps(case["expect"])
+                    if "SEND BACK" in blob or "send_back" in blob                             or "sendback" in case["expect"]["grader"]:
+                        sendbacks += 1
+            if skill in exempt:
+                self.assertIn(exempt[skill], graders,
+                              "%s is exempt from the floor and carries no "
+                              "documented stop-path case" % skill)
+                continue
+            self.assertGreaterEqual(sendbacks, 2,
+                                    "%s has %d SEND BACK cases" % (skill, sendbacks))
 
     # -- installed skill name ------------------------------------------------
 

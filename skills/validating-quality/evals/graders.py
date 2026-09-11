@@ -229,7 +229,7 @@ def _parse_sequence(rows, start, indent):
     return out, i
 
 
-def load_yaml(path):
+def _load_yaml(path):
     with open(path, "r", encoding="utf-8") as handle:
         text = handle.read()
     rows = _rows(text)
@@ -243,7 +243,7 @@ def _read_report(workspace, rel_path):
     full = os.path.join(workspace, rel_path.replace("/", os.sep))
     if not os.path.isfile(full):
         return None, "%s is absent from the workspace" % rel_path
-    return load_yaml(full), ""
+    return _load_yaml(full), ""
 
 
 def _sha256(path):

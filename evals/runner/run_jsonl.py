@@ -86,6 +86,15 @@ default, and Plan's ``PLAN-01`` measured 850s. A timed-out case records
 that was killed never emits one — so the spend of a timeout is real and
 unrecorded, and the summary's cost total is a floor rather than the bill.
 
+Tampering (EVL-004). ``bypassPermissions`` means a model in an eval can rewrite
+the files that decide whether it passed. ``gates.toml``, ``config.toml``,
+``state.toml`` and the workspace ``settings.json`` are hashed before the run and
+after it; any change marks the case ``status: tampered`` with the path,
+whatever the grader returned. ``state.toml`` is exempt from the equality check
+because ``phase set`` rewrites it by design, and is reported only if it was
+deleted. No grader reads these files today, so tampering buys nothing — but that
+is a property of the current graders, not of the harness, and this makes it one.
+
 Preamble refusals reach the transcript as a plain string. Claude Code refuses a
 ``!`...``` injection that carries a shell expansion — measured, a preamble
 written ``devforgeai gate require plan $1`` is refused with "Shell command
@@ -108,6 +117,7 @@ import argparse
 import concurrent.futures
 import datetime
 import fnmatch
+import hashlib
 import importlib.util
 import json
 import os
@@ -278,6 +288,14 @@ def load_cases(path):
             if "grader" not in case.get("expect", {}):
                 raise UsageError("%s line %d has no expect.grader" % (path, number))
             _check_answers(case, path, number)
+            for entry in case.get("preflight") or []:
+                if isinstance(entry, str):
+                    continue
+                if not isinstance(entry, dict) or "command" not in entry:
+                    raise UsageError(
+                        "%s line %d: a preflight entry is neither a command "
+                        "string nor an object carrying 'command'"
+                        % (path, number))
             limit = case.get("timeout")
             if limit is not None and (not isinstance(limit, int)
                                       or isinstance(limit, bool) or limit < 1):
@@ -616,6 +634,52 @@ def make_workspace(case, files, options):
 # claude
 # ---------------------------------------------------------------------------
 
+# EVL-004. `bypassPermissions` lets a model in an eval rewrite the files that
+# decide whether it passed. No grader reads them today, so tampering buys
+# nothing — but "buys nothing" is a property of the current graders, not of the
+# harness. These four are hashed before the run and after it, and any change
+# marks the case `tampered` whatever the grader returned.
+GUARDED = (".devforgeai/gates.toml",
+           ".devforgeai/config.toml",
+           ".devforgeai/state.toml",
+           ".claude/settings.json")
+
+
+def guard_digests(workspace):
+    """SHA-256 of each guarded path, or ``None`` where the file is absent."""
+    out = {}
+    for relative in GUARDED:
+        path = os.path.join(workspace, *relative.split("/"))
+        try:
+            with open(path, "rb") as handle:
+                out[relative] = hashlib.sha256(handle.read()).hexdigest()
+        except OSError:
+            out[relative] = None
+    return out
+
+
+def tampering(before, after):
+    """The guarded paths the run changed, as one line of evidence, or ``""``.
+
+    ``state.toml`` is the exception among the four: the CLI rewrites it on every
+    ``phase set``, which is the run doing its job. It is hashed anyway so the
+    record carries the before and after, and reported only when the file is
+    absent afterwards — a deletion is never the CLI's doing.
+    """
+    changed = []
+    for relative in GUARDED:
+        old, new = before.get(relative), after.get(relative)
+        if old == new:
+            continue
+        if relative == ".devforgeai/state.toml" and new is not None:
+            continue
+        changed.append("%s %s -> %s" % (
+            relative,
+            "absent" if old is None else old[:12],
+            "absent" if new is None else new[:12]))
+    return "; ".join(changed)
+
+
 def claude_argv(binary, model, workspace, seeded, prompts_none):
     """The prompt travels on stdin, not in argv (EVL-051).
 
@@ -719,8 +783,18 @@ def read_stream(stdout):
     return "\n".join(lines), meta
 
 
+_VERSION_PROBE = {}
+
+
 def version_supports_prompts_none(binary):
     """True when the installed claude is 2.1.259 or newer (guidance §4)."""
+    if binary in _VERSION_PROBE:
+        return _VERSION_PROBE[binary]
+    _VERSION_PROBE[binary] = _probe_prompts_none(binary)
+    return _VERSION_PROBE[binary]
+
+
+def _probe_prompts_none(binary):
     try:
         out = subprocess.run([shutil.which(binary) or binary, "--version"],
                              capture_output=True, text=True, timeout=60).stdout
@@ -877,6 +951,7 @@ def run_case(case, files, options, module, run_id, skill_name):
         "permission_denials": [],
         "is_error": False,
         "tool_calls": {},
+        "tampered": "",
     }
     workspace = None
     try:
@@ -887,6 +962,7 @@ def run_case(case, files, options, module, run_id, skill_name):
         argv = claude_argv(options.claude_bin, options.model, workspace,
                            bool(case.get("answers")), options.prompts_none)
         limit = case.get("timeout") or options.timeout
+        before = guard_digests(workspace)
         status, transcript, code, meta = invoke(
             argv, workspace, home, limit, case["prompt"], options,
             options.log_dir, case["id"])
@@ -916,6 +992,15 @@ def run_case(case, files, options, module, run_id, skill_name):
                 case["expect"].get("args", {}))
             record["status"] = status
             record["evidence"] = evidence
+        # After grading, and overriding it: a run that rewrote the files the
+        # gate turns on has not earned whatever the grader said.
+        changed = tampering(before, guard_digests(workspace))
+        if changed:
+            record["tampered"] = changed
+            record["status"] = "tampered"
+            record["evidence"] = (
+                "the run changed a guarded file: %s (grader said %s: %s)"
+                % (changed, status, str(evidence)[:200]))
     except CaseError as exc:
         record["evidence"] = str(exc)
     finally:
@@ -940,6 +1025,23 @@ def preflight_case(case, files, options, skill_name):
     grades. A TOML parse is not enough: the binary rejects a ``config.toml``
     with no ``generated_at`` that parses perfectly.
 
+    An entry is a command string, or an object when the refusal *is* the
+    precondition::
+
+        {"command": "worktree ensure STORY-015", "exit": 1, "code": "DFA-E272"}
+
+    BLD-07 is that case: its subject is the overlap refusal, so the check is
+    that the call fails, with the code the grader then looks for, rather than
+    that it succeeds. ``forbid_code``, with ``"exit": "any"``
+    beside it, is the other shape: Build's last entry runs
+    ``gate check --partial``, whose exit code is not the point — a story with no
+    code yet fails its checks and a degraded fixture skips them — while
+    ``DFA-E311``, the configured command not spawning at all, is a defect on
+    either path and the one that entry exists to catch. ``forbid_code`` is the other half: Build's entry runs
+    ``gate check --partial``, which is *expected* to report failing checks —
+    there is no code yet — but must not report ``DFA-E311``, the configured
+    command not spawning at all.
+
     The workspace is removed afterwards, because the calls mutate it.
     """
     commands = case.get("preflight")
@@ -950,16 +1052,33 @@ def preflight_case(case, files, options, skill_name):
     try:
         workspace, home = make_workspace(case, files, options)
         environment = child_environment(home, options.devforgeai_bin, "inherit")
-        for command in commands:
+        for entry in commands:
+            if isinstance(entry, str):
+                command, wanted_exit, wanted_code, forbidden = entry, 0, "", ""
+            else:
+                command = entry["command"]
+                wanted_exit = entry.get("exit", 0)
+                wanted_code = entry.get("code", "")
+                forbidden = entry.get("forbid_code", "")
             argv = [options.devforgeai_bin] + shlex.split(command, posix=True)
             finished = subprocess.run(
                 argv, cwd=workspace, env=environment, capture_output=True,
                 text=True, timeout=300, encoding="utf-8", errors="replace")
-            if finished.returncode != 0:
-                detail = (finished.stderr or finished.stdout or "").strip()
-                print("FAIL  %s  devforgeai %s -> exit %d: %s"
-                      % (case["id"], command, finished.returncode,
-                         detail.splitlines()[0] if detail else ""))
+            detail = (finished.stderr or finished.stdout or "").strip()
+            first = detail.splitlines()[0] if detail else ""
+            if wanted_exit != "any" and finished.returncode != wanted_exit:
+                print("FAIL  %s  devforgeai %s -> exit %d, the case expects %d: %s"
+                      % (case["id"], command, finished.returncode, wanted_exit,
+                         first))
+                return False
+            if forbidden and forbidden in detail:
+                print("FAIL  %s  devforgeai %s -> %s: %s"
+                      % (case["id"], command, forbidden, first))
+                return False
+            if wanted_code and wanted_code not in detail:
+                print("FAIL  %s  devforgeai %s -> exit %d without %s: %s"
+                      % (case["id"], command, finished.returncode, wanted_code,
+                         first))
                 return False
         print("ok    %s  %d call%s" % (case["id"], len(commands),
                                        "" if len(commands) == 1 else "s"))
@@ -1074,9 +1193,9 @@ def parse_args(argv):
     options.hooks_explicit = options.hooks is True
     if options.hooks is None:
         options.hooks = True
-    options.prompts_none = (
-        False if (options.dry_run or options.preflight)
-        else version_supports_prompts_none(options.claude_bin))
+    # R2: the dry run prints the argv the real run uses, so the version probe
+    # runs in every mode. One `claude --version` exec, cached for the process.
+    options.prompts_none = version_supports_prompts_none(options.claude_bin)
     return options
 
 
@@ -1118,23 +1237,26 @@ def select(cases, options):
 
 
 def summarise(records, elapsed, out_path):
-    counts = {"pass": 0, "fail": 0, "error": 0, "timeout": 0, "limit": 0}
+    counts = {"pass": 0, "fail": 0, "error": 0, "timeout": 0, "limit": 0,
+              "tampered": 0}
     cost = 0.0
     for record in records:
         counts[record["status"]] += 1
         if isinstance(record.get("total_cost_usd"), (int, float)):
             cost += float(record["total_cost_usd"])
     print("cases %d  pass %d  fail %d  error %d  timeout %d  limit %d  "
-          "duration %.1fs  cost $%.2f"
+          "tampered %d  duration %.1fs  cost $%.2f"
           % (len(records), counts["pass"], counts["fail"], counts["error"],
-             counts["timeout"], counts["limit"], elapsed, cost))
+             counts["timeout"], counts["limit"], counts["tampered"],
+             elapsed, cost))
     for record in records:
         if record["status"] == "pass":
             continue
         print("%s  %s  %s: %s" % (record["status"].upper(), record["case_id"],
                                   record["grader"], record["evidence"]))
     print("results: %s" % out_path)
-    if counts["error"] or counts["timeout"] or counts["limit"]:
+    if (counts["error"] or counts["timeout"] or counts["limit"]
+            or counts["tampered"]):
         return 2
     if counts["fail"]:
         return 1

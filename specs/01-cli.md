@@ -1233,7 +1233,7 @@ Exit codes: 0 written; 1 on `DFA-E400`, `DFA-E401`, `DFA-E413`; 3 on `DFA-E012`,
 devforgeai report aggregate [<ID>] [--since <YYYY-MM-DD>] [--session-root <path>] [--json] [--project <path>] [--quiet]
 ```
 
-`<ID>` matches `^(IDEA|EPIC|STORY)-[0-9]{3}$` or `^v[0-9]+\.[0-9]+\.[0-9]+$`. Exactly one of `<ID>` and `--since` is given; neither or both is `DFA-E430`, exit 3, message `pass one id (IDEA-nnn, EPIC-nnn, STORY-nnn, vX.Y.Z) or --since <YYYY-MM-DD>`.
+`<ID>` matches `^(IDEA|EPIC|STORY)-[0-9]{3}$` or `^v[0-9]+\.[0-9]+\.[0-9]+$`. Exactly one of `<ID>` and `--since` is given; neither or both is `DFA-E430`, exit 3, message `pass one id (IDEA-nnn, EPIC-nnn, STORY-nnn, vX.Y.Z) or --since <YYYY-MM-DD>`. A lone token that is not a recognised id satisfies the exactly-one rule, so `DFA-E430` does not apply to it: the token is then tested against the prefix set and fails with `DFA-E013`, exit 3, message `'<value>' is not an ID; expected PREFIX-nnn with three digits`. `DFA-E430` is reserved for the two cases it names — neither argument, or both.
 
 Window rules. With `<ID>` the window holds every report under `.devforgeai/reports/` whose `id` equals `<ID>`, plus, for a version, every report whose `id` is a `STORY-nnn` listed in `.devforgeai/releases/<ID>.yaml`, plus, for an `EPIC-nnn`, every report whose `id` is a `STORY-nnn` whose story frontmatter `consumes` holds that epic. With `--since` the window holds every report whose `finished_at` is at or after that date at 00:00:00Z. `--since` with no date takes `config.toml` `[reflect].window_days` back from today.
 
@@ -1267,7 +1267,7 @@ One `deferrals[]` entry of the aggregate:
   "report": ".devforgeai/reports/STORY-009-qa.yaml" }
 ``` Per-phase durations come from each report's `started_at` and `finished_at`; `state` carries `[current]`, `[active]`, `[last_gate]`, and `[last_handoff].rendered_at`; `floors` carries the compiled minimums of `config.toml` and `gates.toml`.
 
-Human output is one line per section with its count. Exit codes: 0 aggregated; 1 on `DFA-E421`, `DFA-E401`; 3 on `DFA-E430`; 5 on `DFA-E9xx`.
+Human output is one line per section with its count. Exit codes: 0 aggregated; 1 on `DFA-E421`, `DFA-E401`; 3 on `DFA-E430`, `DFA-E013`; 5 on `DFA-E9xx`.
 
 ### `worktree`
 
@@ -2821,6 +2821,8 @@ Arguments:
 
 The `preflight` key is the whole mechanism for 2, 3 and 4. A case names under it the CLI calls its skill makes before it writes anything — the phase's `phase set`, the id allocation that precedes it, the `worktree ensure` a Build run opens with — and `--preflight` runs each against a throwaway copy of the materialised workspace, requiring exit 0 from every one. The copy is thrown away because those calls mutate it, so the same case can then be run for real against a clean workspace.
 
+A `preflight` entry is a bare command string required to exit 0, or an object saying what else the entry is for: `{"command", "exit", "code", "forbid_code"}`. `exit` is the code required and defaults to 0; `"any"` says the exit is not the point. `code` names a `DFA-` code the call has to raise, which is how a case asserts the refusal it exists to catch — Explore's exhausted-prefix case runs `{"command": "doc validate --allocate IDEA", "exit": 1, "code": "DFA-E215"}`. `forbid_code` names one the call must not raise, which is how a case asserts a path is open without pinning the exit — Build's entry runs `{"command": "gate check --phase build --partial --id STORY-014 --quiet", "exit": "any", "forbid_code": "DFA-E311"}`, since a partial gate legitimately fails on work not yet done and the one thing it must not report is a missing test command. Release's cases are the plain form, `["phase set release --id v0.3.0"]`, with one exception asserting the refusal: `{"command": "phase set release --id v0.3.0", "exit": 1, "code": "DFA-E320"}` is the case whose fixture holds a verify gate short of PASS.
+
 **Seeded files and the shebang rule.** A case's `setup.files` entries are written into the workspace as given, and an entry whose content opens with `#!` is written executable. Such a file is a command the run is expected to execute rather than a document: `config.toml` names `./ci/test`, and Build's red-green loop turns on its exit code. Without the mode bit the loop failed on a permission error that looked like a test failure.
 
 **What the child sees.** The release binary's directory is prepended to `PATH`, because every skill preamble opens with `` !`devforgeai …` `` and a non-zero exit there aborts the whole invocation. The prompt travels on stdin rather than in argv: on Windows `claude` is an npm `.cmd` shim and an argument carrying newlines does not survive `cmd.exe`. The argv is
@@ -2837,6 +2839,10 @@ The `preflight` key is the whole mechanism for 2, 3 and 4. A case names under it
 ```
 
 `--permission-mode` is `bypassPermissions`, and the reason is the acceptance set rather than convenience. `acceptEdits` covers Write and Edit and nothing else, and `claude -p` has no approval surface, so every command the mode does not cover is denied outright with no one to ask. A compound shell command matches no `Bash(devforgeai *)` rule — `cd wt/STORY-014 && ./ci/test` is what a Build run issues — and neither does the project's own test command, so a run under `acceptEdits` failed on the shell rather than on the skill. What bypassing costs is bounded: the workspace is a throwaway the runner creates under `mkdtemp` and deletes, the child sees no user configuration, and the framework's own hooks still run inside it — the `PreToolUse` deny fires in every permission mode, `bypassPermissions` included, and no allow overrides it. So the gates still enforce and only the prompt is gone.
+
+**The tamper guard.** Bypassing the prompt means a model in an eval can rewrite the files that decide whether it passed. `.devforgeai/gates.toml`, `.devforgeai/config.toml`, `.devforgeai/state.toml`, and the workspace `.claude/settings.json` are hashed before the run and after it, and any change marks the case `status: tampered`, with the changed path and its before and after digests in `tampered`, whatever the grader returned. `state.toml` is the exception to the equality check, because `phase set` rewrites it by design and that is the run doing its job; it is hashed anyway so the record carries both digests, and reported only when the file is absent afterwards, since a deletion is never the CLI's doing.
+
+No grader reads those four files today, so tampering buys nothing. That is a property of the current graders rather than of the harness, and the guard makes it a property of the harness: a grader added later that does read one of them inherits the protection rather than having to ask for it.
 
 `--allowedTools` is still passed, because naming a tool grants it and denies nothing and the list is what a case's transcript is read against: `Bash(devforgeai *)`, `PowerShell(devforgeai *)`, `Bash(devforgeai:*)`, `PowerShell(devforgeai:*)`, `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Agent`, `Skill`, `AskUserQuestion`, `WebSearch`, `WebFetch`, `TodoWrite`. Both grant spellings appear because the frontmatter uses one and the permission-rule syntax the other. The last two lines of the argv are exclusive: a case that declares `answers` takes the permission host, and a case that declares none takes `--permission-prompts none`, so a question it was never meant to reach is denied rather than left hanging.
 
@@ -2892,12 +2898,13 @@ Per case, in order:
   "num_turns": 9,
   "permission_denials": [],
   "is_error": false,
-  "tool_calls": { "Bash": 4, "Write": 2, "Agent": 1 } }
+  "tool_calls": { "Bash": 4, "Write": 2, "Agent": 1 },
+  "tampered": "" }
 ```
 
 `FIXTURE-SHA:<name>`, which would substitute a fixture's SHA-256 into `expect.args`, is not implemented: a case needing a digest inlines the literal, which is what `specs/04-constitute.md` already does. `FIXTURE:<name>` in `setup.files` is the one fixture reference form.
 
-`status` is the closed enum `pass`, `fail`, `error`, `timeout`, `limit`. `passed` is `status == "pass"`. `evidence` is the second element of the grader's return tuple, cut to 2000 characters.
+`status` is the closed enum `pass`, `fail`, `error`, `timeout`, `limit`, `tampered`. `passed` is `status == "pass"`. `evidence` is the second element of the grader's return tuple, cut to 2000 characters.
 
 `limit` is a run the account's usage limit stopped before it finished, recognised from the text of the error result rather than from an exit code, because the process exits the way any other error exits. It is its own status and not an `error`: an `error` says the case or the skill is wrong, and a `limit` says nothing about either — rerunning it later is the whole remedy, and folding it into `error` would have a suite report defects it did not find.
 
@@ -2906,12 +2913,12 @@ A run that times out records no `total_cost_usd`: the result event carrying it n
 The summary printed to stdout after the last case:
 
 ```
-cases 6  pass 5  fail 1  error 0  timeout 0  limit 0  duration 142.3s  cost $0.24
+cases 6  pass 5  fail 1  error 0  timeout 0  limit 0  tampered 0  duration 142.3s  cost $0.24
 FAIL  send-back-missing-req  asserts_send_back: transcript has no SEND BACK line
 results: skills/discovering-requirements/evals/results.jsonl
 ```
 
-Six counts, one per status plus the case total, then the wall clock and the summed `total_cost_usd` of every case that reported one. One line per case that did not pass follows, then the results path. The runner exits 0 when every case passed, 1 when a case failed, 2 when any case errored, timed out, or hit the usage limit, and 3 on a usage error: a `fail` is a measurement and the other three are not.
+Seven counts, one per status plus the case total, then the wall clock and the summed `total_cost_usd` of every case that reported one. One line per case that did not pass follows, then the results path. The runner exits 0 when every case passed, 1 when a case failed, 2 when any case errored, timed out, hit the usage limit, or tampered, and 3 on a usage error: a `fail` is a measurement and the other four are not. `tampered` overrides whatever the grader returned, so a case that tampered and would otherwise have passed is not counted as a pass.
 
 Runner exit codes, read by a human and by CI: 0 when every case passes, 1 when a case fails, 2 when a case errors or times out, 3 on a usage error. No phase gate consumes them.
 

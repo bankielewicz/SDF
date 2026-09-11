@@ -26,7 +26,7 @@ Every count and every timestamp in that document comes from `devforgeai report a
 | `/reflect vX.Y.Z` | id | every report for a `STORY-nnn` listed in `.devforgeai/releases/vX.Y.Z.yaml` |
 | `/reflect --since YYYY-MM-DD` | since | every report whose `finished_at` is at or after that date at 00:00:00Z |
 
-`$ARGUMENTS` holding neither a recognised id prefix nor `--since` stops the run in the preamble: `devforgeai report aggregate` exits 3 on `DFA-E430` and its stderr line names the four accepted prefixes and the `--since` form.
+`$ARGUMENTS` holding neither a recognised id prefix nor `--since` stops the run in the preamble. A token that parses as no id — `/reflect lastweek` — exits 3 on `DFA-E013`, whose stderr line reads `'lastweek' is not an ID`. A bare `/reflect`, or one carrying both an id and `--since`, exits 3 on `DFA-E430`, which is the neither-or-both rule `report aggregate` holds. Either way the body does not load, and the stderr line is what reaches the user.
 
 The preamble line at the head of this file runs before the body loads:
 

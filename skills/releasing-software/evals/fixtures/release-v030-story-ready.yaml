@@ -1,0 +1,87 @@
+schema: devforgeai/release/1
+id: v0.3.0
+phase: release
+status: draft
+produced_by: releasing-software
+consumes: [STORY-014, STORY-017]
+open_questions: []
+previous_version: ""
+released_at: ""
+stories:
+  - id: STORY-014
+    title: Order checkout
+    status: built
+    qa_report: .devforgeai/reports/STORY-014-qa.yaml
+    verify_report: .devforgeai/reports/STORY-014-verify.yaml
+    verify_result: PASS
+    requirements: [REQ-007, REQ-011]
+    deferrals: []
+  - id: STORY-017
+    title: Refund webhook
+    status: ready
+    qa_report: .devforgeai/reports/STORY-017-qa.yaml
+    verify_report: .devforgeai/reports/STORY-017-verify.yaml
+    verify_result: PASS
+    requirements: [REQ-009]
+    deferrals: [FIND-009]
+artifacts: []
+platform:
+  target: kubernetes
+  source: config
+  marker: ""
+deploy:
+  root: deploy
+  manifests:
+    - path: deploy/kubernetes/deployment.yaml
+      kind: workload
+    - path: deploy/kubernetes/service.yaml
+      kind: network
+    - path: deploy/kubernetes/ingress.yaml
+      kind: network
+    - path: deploy/kubernetes/kustomization.yaml
+      kind: overlay
+    - path: deploy/kubernetes/ROLLBACK.md
+      kind: script
+  ci_workflow: .github/workflows/devforgeai-release.yml
+  ci_check_name: devforgeai-release-gate
+  rollback: deploy/kubernetes/ROLLBACK.md
+docs:
+  root: docs
+  index: docs/README.md
+  api:
+    - docs/api/index.md
+  guide: docs/guide/index.md
+  architecture: docs/architecture/index.md
+  brand: []
+  api_symbols: 0
+  api_documented: 0
+notes:
+  summary: Checkout and refunds
+  entries:
+    - story: STORY-014
+      title: Order checkout
+      kind: feature
+      requirements: [REQ-007, REQ-011]
+    - story: STORY-017
+      title: Refund webhook
+      kind: feature
+      requirements: [REQ-009]
+  requirements:
+    - id: REQ-007
+      statement: A buyer completes a purchase without an account.
+    - id: REQ-009
+      statement: A refund raised by the payment provider reaches the ledger.
+    - id: REQ-011
+      statement: A completed purchase produces one order record.
+  deferred:
+    - find: FIND-009
+      story: STORY-017
+      summary: Refund webhook signature check deferred with no replacement control
+      kind: blocks_deployment
+      severity: block
+signoff:
+  gate: SEND_BACK
+  report: .devforgeai/reports/v0.3.0-release.yaml
+  checks_passed: 9
+  checks_total: 10
+  at: ""

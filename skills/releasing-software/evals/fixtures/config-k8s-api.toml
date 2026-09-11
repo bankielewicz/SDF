@@ -11,17 +11,19 @@ timeout_secs = 900
 env = {}
 
 [release]
-platform = "none"
+platform = "kubernetes"
 ci = "github-actions"
 deploy_root = "deploy"
 docs_root = "docs"
 build_command = ""
 package_command = ""
 artifact_paths = []
-# `sh` prefix: the gate spawns through the platform shell and
-# `cmd` cannot execute a shebang script.
-api_symbols_command = "sh tools/api-symbols.sh"
-image_name = ""
+# rl-01 is the happy path, so `release-docs-cover` has to run rather than
+# skip: an unset command skips the check, the gate still reports PASS, and
+# the signoff then reads 9 of 10. `sh` prefix because the gate spawns
+# through the platform shell and `cmd` cannot execute a shebang script.
+api_symbols_command = "sh ci/api-symbols"
+image_name = "registry.example.invalid/checkout"
 service_port = 8080
 
 [[verifier]]
