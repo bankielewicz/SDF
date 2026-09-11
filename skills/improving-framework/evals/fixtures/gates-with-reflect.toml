@@ -1,0 +1,48 @@
+schema = "devforgeai/gates/1"
+cli_min_version = "1.0.0"
+
+[[gate]]
+phase = "reflect"
+requires = ""
+on_fail = "fail"
+send_back_to = ""
+description = "The reflect report exists and parses, every REC cites an OBS, every OBS cites a report path or a session id, and no REC lowers a compiled floor."
+
+  [[gate.check]]
+  kind = "file_exists"
+  id = "reflect-report-exists"
+  paths = ["reports/reflect-{id}.yaml"]
+  min_count = 1
+
+  [[gate.check]]
+  kind = "doc_valid"
+  id = "reflect-docs"
+  docs = ["reports/reflect-{id}.yaml"]
+
+  [[gate.check]]
+  kind = "yaml_cites"
+  id = "reflect-rec-cites-obs"
+  doc = "reports/reflect-{id}.yaml"
+  from = "recommendations"
+  field = "observations"
+  into = ["observations[].id"]
+  min = 1
+
+  [[gate.check]]
+  kind = "yaml_cites"
+  id = "reflect-obs-cites-source"
+  doc = "reports/reflect-{id}.yaml"
+  from = "observations"
+  field = "sources"
+  into = ["sources.reports[].path", "sources.sessions.files[].session_id"]
+  min = 1
+
+  [[gate.check]]
+  kind = "no_threshold_decrease"
+  id = "reflect-no-lowered-floor"
+  doc = "reports/reflect-{id}.yaml"
+  from = "recommendations"
+  target_field = "target.path"
+  key_field = "target.key"
+  value_field = "proposed_value"
+  files = ["gates.toml", "config.toml"]

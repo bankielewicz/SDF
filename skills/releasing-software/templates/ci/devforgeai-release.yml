@@ -1,0 +1,30 @@
+name: devforgeai release gate
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  pull_request:
+    paths:
+      - ".devforgeai/**"
+      - "@@DEPLOY@@/**"
+      - "@@DOCS@@/**"
+jobs:
+  devforgeai-release-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: resolve version
+        id: v
+        run: |
+          v="${GITHUB_REF_NAME}"
+          case "$v" in
+            v*.*.*) ;;
+            *) v="@@VERSION@@" ;;
+          esac
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: verify the binary
+        run: devforgeai trust verify
+      - name: validate the documents
+        run: devforgeai doc validate --all
+      - name: check the release gate
+        run: devforgeai gate check --phase release --id "${{ steps.v.outputs.version }}"

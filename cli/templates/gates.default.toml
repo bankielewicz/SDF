@@ -1,0 +1,545 @@
+schema = "devforgeai/gates/1"
+cli_min_version = "1.0.0"
+
+[[gate]]
+phase = "explore"
+requires = ""
+on_fail = "fail"
+send_back_to = ""
+description = "A decision is recorded, the brief carries three to five flows, the time box holds."
+
+  [[gate.check]]
+  kind = "file_exists"
+  id = "decision-exists"
+  severity = "block"
+  on_fail = "fail"
+  paths = [".devforgeai/explore/decision.yaml"]
+  min_count = 1
+  message = "no decision recorded for {id}"
+
+  [[gate.check]]
+  kind = "field_in_enum"
+  id = "decision-enum"
+  severity = "block"
+  on_fail = "fail"
+  path = "explore/decision.yaml"
+  field = "decision"
+  values = ["kill", "park", "promote"]
+  message = "decision is {value}, expected kill, park or promote"
+
+  [[gate.check]]
+  kind = "field_is_date"
+  id = "decision-dated"
+  severity = "block"
+  on_fail = "fail"
+  path = "explore/decision.yaml"
+  field = "decided_on"
+  format = "%Y-%m-%d"
+  message = "decided_on is {value}, expected YYYY-MM-DD"
+
+  [[gate.check]]
+  kind = "field_is_date"
+  id = "park-has-revisit"
+  severity = "block"
+  on_fail = "fail"
+  path = "explore/decision.yaml"
+  field = "revisit_on"
+  format = "%Y-%m-%d"
+  after_field = "decided_on"
+  required_when = { path = "explore/decision.yaml", field = "decision", equals = "park" }
+  null_when = { path = "explore/decision.yaml", field = "decision", in = ["kill", "promote"] }
+  message = "park decision needs revisit_on later than decided_on"
+
+  [[gate.check]]
+  kind = "length_between"
+  id = "promote-carries-forward"
+  severity = "block"
+  on_fail = "fail"
+  path = "explore/decision.yaml"
+  field = "carry_forward"
+  min = 7
+  max = 7
+  required_when = { path = "explore/decision.yaml", field = "decision", equals = "promote" }
+  empty_when = { path = "explore/decision.yaml", field = "decision", in = ["kill", "park"] }
+  message = "promote decision carries {value} artifacts, expected 7"
+
+  [[gate.check]]
+  kind = "row_count_between"
+  id = "flow-count"
+  severity = "block"
+  on_fail = "fail"
+  path = "explore/brief.md"
+  section = "Core flows"
+  min = 3
+  max = 5
+  message = "{value} core flows, expected 3 to 5"
+
+  [[gate.check]]
+  kind = "column_matches"
+  id = "flow-id-shape"
+  severity = "block"
+  on_fail = "fail"
+  path = "explore/brief.md"
+  section = "Core flows"
+  column = "ID"
+  pattern = "^FLOW-[0-9]{3}$"
+  unique = true
+  message = "core flow id {value} is malformed or duplicated"
+
+  [[gate.check]]
+  kind = "row_count_between"
+  id = "one-success-signal"
+  severity = "block"
+  on_fail = "fail"
+  path = "explore/brief.md"
+  section = "Success signal"
+  min = 1
+  max = 1
+  message = "{value} success signals, expected exactly 1"
+
+  [[gate.check]]
+  kind = "verifier_pass"
+  id = "kill-case-answered"
+  severity = "block"
+  on_fail = "fail"
+  verifiers = ["kill-case-builder"]
+  min_ratio = 0.0
+  message = "kill-case-builder result absent from the report for {id}"
+
+  [[gate.check]]
+  kind = "column_contains_all"
+  id = "remedy-flows-present"
+  severity = "block"
+  on_fail = "fail"
+  path = "explore/brief.md"
+  section = "Core flows"
+  column = "ID"
+  state_field = "explore.remedy_flows"
+  skip_when = { state_field = "explore.remedy_flows", is_empty = true }
+  message = "remedy cited {value}, which is absent from Core flows"
+
+  [[gate.check]]
+  kind = "elapsed_days_at_most"
+  id = "time-box"
+  severity = "block"
+  on_fail = "fail"
+  started_field = "explore.started_at"
+  limit_field = "explore.timebox_days"
+  remedy_started_field = "explore.remedy_started_at"
+  remedy_limit_field = "explore.remedy_timebox_days"
+  skip_when = { doc_exists = "explore/decision.yaml" }
+  message = "time box spent, {value} of {limit} days, decide kill, park or promote"
+
+  [[gate.check]]
+  kind = "file_exists"
+  id = "prototype-pruned"
+  severity = "block"
+  on_fail = "fail"
+  paths = [".explore-prototype"]
+  absent = true
+  required_when = { path = "explore/decision.yaml", field = "decision", in = ["kill", "promote"] }
+  message = "prototype directory still present after a {value} decision"
+
+[[gate]]
+phase = "discover"
+requires = "explore"
+on_fail = "fail"
+send_back_to = "explore"
+document = "requirements.yaml"
+description = "Every requirement is complete, every actor resolves, every requirement sits in an epic, the user accepted."
+
+  [[gate.check]]
+  kind = "fields_present"
+  id = "req-fields-present"
+  collection = "requirements"
+  fields = ["id", "actor", "statement", "rationale", "acceptance_signal", "priority", "source", "status"]
+  message = "requirement {value} is missing a required field"
+
+  [[gate.check]]
+  kind = "ids_resolve"
+  id = "actor-resolves"
+  from = "requirements[].actor"
+  to = "personas[].id"
+  message = "actor {value} names no persona"
+
+  [[gate.check]]
+  kind = "length_between"
+  id = "epic-not-empty"
+  field = "epics[].requirements"
+  min = 1
+  exclude_status = ["withdrawn"]
+  message = "epic {value} holds no live requirement"
+
+  [[gate.check]]
+  kind = "set_cover"
+  id = "no-ungrouped-req"
+  cover = "epics[].requirements"
+  universe = "requirements[].id"
+  exclude_status = ["withdrawn"]
+  message = "requirement {value} belongs to no epic"
+
+  [[gate.check]]
+  kind = "fields_present"
+  id = "accepted"
+  field = "accepted_by"
+  message = "requirements.yaml is not accepted"
+
+[[gate]]
+phase = "constitute"
+requires = "discover"
+on_fail = "fail"
+send_back_to = "discover"
+description = "The six context files audit clean and both reviewers report no blocking finding."
+
+  [[gate.check]]
+  kind = "context_audit"
+  id = "CTX-AUDIT"
+  allow_warn = false
+  message = "context audit failed: {value}"
+
+  [[gate.check]]
+  kind = "report_metric"
+  id = "REVIEW"
+  metric = "verifiers.architecture_reviewer.payload.blocking_findings"
+  op = "eq"
+  value = 0
+  message = "architecture-reviewer reports {value} blocking findings"
+
+  [[gate.check]]
+  kind = "report_metric"
+  id = "ALIGNMENT"
+  metric = "verifiers.alignment_auditor.payload.blocking_findings"
+  op = "eq"
+  value = 0
+  message = "alignment-auditor reports {value} blocking findings"
+
+  [[gate.check]]
+  kind = "report_metric"
+  id = "SEND-BACK-REQUIREMENTS"
+  metric = "verifiers.architecture_reviewer.payload.send_back_requirements.length"
+  op = "eq"
+  value = 0
+  on_fail = "send_back"
+  message = "architecture-reviewer sends {value} requirements back to Discover"
+
+[[gate]]
+phase = "plan"
+requires = "constitute"
+on_fail = "fail"
+send_back_to = "discover"
+description = "Stories and sprint parse, every AC is testable, references resolve, no dependency cycle."
+
+  [[gate.check]]
+  kind = "doc_valid"
+  id = "plan-docs"
+  docs = ["stories/STORY-*.md", "stories/sprint.yaml"]
+
+  [[gate.check]]
+  kind = "story_valid"
+  id = "plan-stories"
+  scope = "sprint"
+
+  [[gate.check]]
+  kind = "ids_resolve"
+  id = "plan-ids"
+  prefixes = ["STORY", "AC", "REQ", "SPRINT", "UI"]
+  on_fail = "send_back"
+
+  [[gate.check]]
+  kind = "field_in_enum"
+  id = "plan-sprint-status"
+  path = ".devforgeai/stories/sprint.yaml"
+  field = "status"
+  values = ["active"]
+
+  [[gate.check]]
+  kind = "verifier_pass"
+  id = "plan-invest"
+  verifiers = ["story-invest-auditor"]
+  min_ratio = 1.0
+  on_fail = "send_back"
+
+[[gate]]
+phase = "build"
+requires = "plan"
+on_fail = "fail"
+send_back_to = "plan"
+description = "Story implemented, tests green, coverage by layer met, lint clean."
+
+  [[gate.check]]
+  kind = "doc_valid"
+  id = "build-docs"
+  docs = ["stories/{id}.md"]
+  on_fail = "send_back"
+
+  [[gate.check]]
+  kind = "field_in_enum"
+  id = "build-status"
+  path = "stories/{id}.md"
+  field = "status"
+  values = ["building", "built"]
+
+  [[gate.check]]
+  kind = "tests_pass"
+  id = "build-tests"
+  stacks = []
+  allow_empty = false
+
+  [[gate.check]]
+  kind = "coverage_min"
+  id = "build-coverage"
+  layers = ["domain", "application", "infrastructure", "interface"]
+  overall = true
+  source = "run"
+
+  [[gate.check]]
+  kind = "lint_clean"
+  id = "build-lint"
+  stacks = []
+
+  [[gate.check]]
+  kind = "design_tokens"
+  id = "build-design"
+  paths = []
+  severity = "warn"
+
+  [[gate.check]]
+  kind = "complexity_clean"
+  id = "build-complexity"
+  stacks = []
+  severity = "warn"
+
+  [[gate.check]]
+  kind = "files_declared"
+  id = "build-files"
+  message = "{value} is outside the declared file set of {id}"
+
+  [[gate.check]]
+  kind = "antipattern_clean"
+  id = "build-antipatterns"
+  min_severity = "high"
+  scope = "story"
+
+  [[gate.check]]
+  kind = "verifier_pass"
+  id = "build-testable"
+  verifiers = ["ac-test-writer"]
+  min_ratio = 1.0
+  on_fail = "send_back"
+
+  [[gate.check]]
+  kind = "verifier_pass"
+  id = "build-context"
+  verifiers = ["context-validator"]
+  min_ratio = 1.0
+
+  [[gate.check]]
+  kind = "verifier_pass"
+  id = "build-acs"
+  verifiers = ["story-ac-verifier"]
+  min_ratio = 1.0
+  on_fail = "send_back"
+
+[[gate]]
+phase = "verify"
+requires = "build"
+on_fail = "fail"
+send_back_to = "build"
+description = "The QA report parses, every registered verifier passed, no blocker finding stands, every deferral resolves without a cycle, coverage by layer holds, lint is clean."
+
+  [[gate.check]]
+  kind = "doc_valid"
+  id = "verify-docs"
+  docs = ["reports/{id}-qa.yaml"]
+
+  [[gate.check]]
+  kind = "verifier_pass"
+  id = "verify-acs"
+  verifiers = ["ac-compliance-verifier"]
+  min_ratio = 1.0
+  on_fail = "send_back"
+
+  [[gate.check]]
+  kind = "verifier_pass"
+  id = "verify-light"
+  verifiers = ["standards-reviewer", "anti-pattern-scanner", "constraint-auditor",
+               "coverage-gap-auditor", "dead-code-detector", "deferral-validator"]
+  min_ratio = 1.0
+  on_fail = "send_back"
+  message = "a light-mode verifier reported a blocking finding for {id}"
+
+  [[gate.check]]
+  kind = "verifier_pass"
+  id = "verify-deep"
+  verifiers = ["security-auditor", "code-quality-auditor", "adr-conformance-reviewer"]
+  min_ratio = 1.0
+  on_fail = "send_back"
+  skip_when = { path = "reports/{id}-qa.yaml", field = "mode", equals = "light" }
+  message = "a deep-mode verifier reported a blocking finding for {id}"
+
+  [[gate.check]]
+  kind = "length_between"
+  id = "verify-blockers"
+  path = "reports/{id}-qa.yaml"
+  field = "blockers"
+  min = 0
+  max = 0
+  on_fail = "send_back"
+  message = "{value} blocker findings stand for {id}"
+
+  [[gate.check]]
+  kind = "ids_resolve"
+  id = "verify-ids"
+  prefixes = ["FIND", "AC", "STORY", "ADR", "CON", "AP"]
+
+  [[gate.check]]
+  kind = "no_cycle"
+  id = "verify-deferral-cycle"
+  docs = ["reports/STORY-*-qa.yaml"]
+  root = "{id}"
+  from = "id"
+  to = "deferrals[].target"
+  prefix = "STORY"
+  on_fail = "send_back"
+  message = "a deferral chain returns to {id}"
+
+  [[gate.check]]
+  kind = "coverage_min"
+  id = "verify-coverage"
+  layers = ["domain", "application", "infrastructure", "interface"]
+  overall = true
+  source = "read"
+
+  [[gate.check]]
+  kind = "lint_clean"
+  id = "verify-lint"
+  stacks = []
+
+  [[gate.check]]
+  kind = "field_in_enum"
+  id = "verify-story-status"
+  path = "stories/{id}.md"
+  field = "status"
+  values = ["built", "verified"]
+
+[[gate]]
+phase = "release"
+requires = ""
+on_fail = "fail"
+send_back_to = "verify"
+description = "Every story in the release is built and verified, no deferral blocks deployment, the manifests and the docs match what ships, and the version moves forward."
+
+  [[gate.check]]
+  kind = "doc_valid"
+  id = "release-docs"
+  docs = ["releases/{id}.yaml"]
+
+  [[gate.check]]
+  kind = "file_exists"
+  id = "release-file"
+  paths = ["releases/{id}.yaml"]
+  min_count = 1
+
+  [[gate.check]]
+  kind = "field_in_enum"
+  id = "release-status"
+  path = "releases/{id}.yaml"
+  field = "status"
+  values = ["released"]
+  message = "{id} is at {value}; the release file moves to released before the gate runs"
+
+  [[gate.check]]
+  kind = "length_between"
+  id = "release-set"
+  path = "releases/{id}.yaml"
+  field = "stories[]"
+  min = 1
+  message = "{id} names {value} stories; a release carries at least {limit}"
+
+  [[gate.check]]
+  kind = "fields_present"
+  id = "release-entries"
+  path = "releases/{id}.yaml"
+  collection = "stories[]"
+  fields = ["id", "title", "status", "qa_report", "verify_report", "verify_result"]
+
+  [[gate.check]]
+  kind = "ids_resolve"
+  id = "release-ids"
+  prefixes = ["STORY", "REQ", "ADR", "FIND"]
+  on_fail = "send_back"
+
+  [[gate.check]]
+  kind = "release_stories"
+  id = "release-stories"
+  path = "releases/{id}.yaml"
+  require_status = ["built", "released"]
+  require_report = "verify"
+  require_result = "PASS"
+  on_fail = "send_back"
+  message = "{value} is not built with a PASS verify report"
+
+  [[gate.check]]
+  kind = "verifier_pass"
+  id = "release-deferrals"
+  verifiers = ["deferral-auditor"]
+  min_ratio = 1.0
+  on_fail = "send_back"
+
+  [[gate.check]]
+  kind = "deploy_manifest"
+  id = "release-manifest"
+  path = "releases/{id}.yaml"
+  platform = ""
+
+  [[gate.check]]
+  kind = "docs_cover"
+  id = "release-docs-cover"
+  path = "releases/{id}.yaml"
+  min_ratio = 1.0
+
+[[gate]]
+phase = "reflect"
+requires = ""
+on_fail = "fail"
+send_back_to = ""
+description = "The reflect report exists and parses, every REC cites an OBS, every OBS cites a report path or a session id, and no REC lowers a compiled floor."
+
+  [[gate.check]]
+  kind = "file_exists"
+  id = "reflect-report-exists"
+  paths = ["reports/reflect-{id}.yaml"]
+  min_count = 1
+
+  [[gate.check]]
+  kind = "doc_valid"
+  id = "reflect-docs"
+  docs = ["reports/reflect-{id}.yaml"]
+
+  [[gate.check]]
+  kind = "yaml_cites"
+  id = "reflect-rec-cites-obs"
+  doc = "reports/reflect-{id}.yaml"
+  from = "recommendations"
+  field = "observations"
+  into = ["observations[].id"]
+  min = 1
+
+  [[gate.check]]
+  kind = "yaml_cites"
+  id = "reflect-obs-cites-source"
+  doc = "reports/reflect-{id}.yaml"
+  from = "observations"
+  field = "sources"
+  into = ["sources.reports[].path", "sources.sessions.files[].session_id"]
+  min = 1
+
+  [[gate.check]]
+  kind = "no_threshold_decrease"
+  id = "reflect-no-lowered-floor"
+  doc = "reports/reflect-{id}.yaml"
+  from = "recommendations"
+  target_field = "target.path"
+  key_field = "target.key"
+  value_field = "proposed_value"
+  files = ["gates.toml", "config.toml"]

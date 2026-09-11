@@ -1,0 +1,16 @@
+schema: devforgeai/report/1
+id: STORY-104
+phase: build
+status: send_back
+produced_by: devforgeai-cli
+consumes: [STORY-104, SPRINT-001]
+open_questions: []
+gate:
+  result: SEND_BACK
+  send_back_to: plan
+  checks: []
+findings:
+  - id: AC-019
+    severity: block
+    summary: the Then clause names no value a test reads
+    evidence: STORY-104 AC-019

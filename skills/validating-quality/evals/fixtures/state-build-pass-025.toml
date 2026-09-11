@@ -1,0 +1,46 @@
+schema = "devforgeai/state/1"
+updated_at = "2026-09-11T09:00:00Z"
+
+[current]
+phase = "build"
+id = "STORY-025"
+
+[active]
+explore = "IDEA-002"
+discover = "IDEA-002"
+constitute = "IDEA-002"
+plan = "SPRINT-003"
+build = "STORY-025"
+verify = ""
+release = ""
+
+[explore]
+idea_id = "IDEA-002"
+started_at = "2026-09-01T09:00:00Z"
+timebox_days = 5
+remedy_started_at = ""
+remedy_timebox_days = 1
+remedy_flows = []
+
+[constitute]
+remedy_con = ""
+
+[last_gate]
+phase = "build"
+id = "STORY-025"
+result = "PASS"
+at = "2026-09-11T08:55:00Z"
+report = ".devforgeai/reports/STORY-025-build.yaml"
+send_back_to = ""
+failed_checks = []
+
+[last_handoff]
+rendered_at = "2026-09-11T08:55:01Z"
+phase = "build"
+id = "STORY-025"
+lines = []
+
+[stop_hook]
+block_count = 0
+blocked_phase = ""
+blocked_id = ""

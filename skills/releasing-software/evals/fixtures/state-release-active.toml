@@ -1,0 +1,35 @@
+schema = "devforgeai/state/1"
+updated_at = "2026-09-11T08:40:00Z"
+
+[current]
+phase = "release"
+id = "v0.3.0"
+
+[active]
+explore = "IDEA-003"
+discover = "IDEA-003"
+constitute = "IDEA-003"
+plan = "SPRINT-001"
+build = "STORY-021"
+verify = "STORY-021"
+release = "v0.3.0"
+
+[last_gate]
+phase = "verify"
+id = "STORY-021"
+result = "PASS"
+at = "2026-09-11T08:39:00Z"
+report = ".devforgeai/reports/STORY-021-verify.yaml"
+send_back_to = ""
+failed_checks = []
+
+[last_handoff]
+rendered_at = "2026-09-11T08:39:01Z"
+phase = "verify"
+id = "STORY-021"
+lines = []
+
+[stop_hook]
+block_count = 0
+blocked_phase = ""
+blocked_id = ""

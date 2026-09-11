@@ -1,0 +1,53 @@
+# How the baseline_section_sha256 values in cases.jsonl were produced
+
+Subject file: skills/exploring-ideas/evals/fixtures/brief-4-flows.md
+Line endings in the fixture: LF only. A CRLF copy produces different digests.
+
+Recipe, one digest per section heading:
+
+  1. Take the lines after the line `## <heading>`, up to the next line that
+     starts with `## `, or to end of file.
+  2. Strip trailing whitespace from each line.
+  3. Drop leading and trailing blank lines.
+  4. Join the remaining lines with a single "\n". No trailing newline.
+  5. Encode UTF-8, take hashlib.sha256(...).hexdigest().
+
+graders.py implements this recipe in `_section_digest` and compares against the
+`baseline_section_sha256` entry of the case that names the section.
+
+Reproduce:
+
+  python - <<'EOF'
+  import hashlib
+  text = open("skills/exploring-ideas/evals/fixtures/brief-4-flows.md",
+              encoding="utf-8", newline="").read()
+  secs, cur, buf = {}, None, []
+  for line in text.split("\n"):
+      if line.startswith("## "):
+          if cur is not None: secs[cur] = buf
+          cur, buf = line[3:].strip(), []
+      elif cur is not None:
+          buf.append(line)
+  secs[cur] = buf
+  for name in ["Competitor scan", "Technology scan", "Non-goals", "Success signal"]:
+      ls = [l.rstrip() for l in secs[name]]
+      while ls and not ls[0]: ls.pop(0)
+      while ls and not ls[-1]: ls.pop()
+      print(name, hashlib.sha256("\n".join(ls).encode("utf-8")).hexdigest())
+  EOF
+
+Values recorded in case ex-05-remedy-two-flows:
+
+  Competitor scan   3a4020210a6f69e2a70ecaae74cf6c9c6514d97983323412cae844f29fb094a2
+  Technology scan   f1076d104e1f7257526ab4d3233651e764d71fbd8f1af929d066fe5268677355
+  Non-goals         ffa2f67848c1a7b76c3bc79d720d007d6e60f79843195172c6a958a792a74d2e
+  Success signal    54431fda8f53c08bcdefaeca08efa5923eb1d752b8f16877f915ca94e314f309
+
+Departure from specs/02-explore.md: the four digests printed in that spec's
+cases.jsonl block were placeholders, not digests of any fixture text. The
+"Technology scan" value there is 65 hex characters, one longer than a SHA-256,
+and the other three repeat the same 16-character fragments. The fixture was
+written to hold the flow rows the case lines pin byte-for-byte
+(FLOW-001 and FLOW-003 from ex-05, FLOW-002 from ex-06), the digests were
+computed by the recipe above, and the four values in the ex-05 case line were
+replaced with the computed ones. Nothing else in cases.jsonl changed.

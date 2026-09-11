@@ -1,0 +1,35 @@
+schema: devforgeai/requirements/1
+id: IDEA-021
+phase: discover
+status: accepted
+produced_by: discovering-requirements
+consumes: [IDEA-021]
+open_questions: []
+revision: 1
+revision_log: []
+accepted_by: user
+accepted_at: 2026-09-10T14:22:05Z
+personas:
+  - id: PERSONA-001
+    name: Shopper
+    description: A signed-in customer buying from the storefront.
+    goal: Complete a purchase without re-entering data.
+epics:
+  - id: EPIC-001
+    title: Catalog
+    scope: A shopper browses the catalog.
+    out_of_scope:
+      - The system does not offer faceted search.
+    success_metric: Catalog p99 latency reaches 50 milliseconds.
+    requirements: [REQ-014]
+requirements:
+  - id: REQ-014
+    actor: PERSONA-001
+    statement: Every catalog query returns within 50 milliseconds at p99.
+    rationale: Shoppers abandon a slow catalog.
+    acceptance_signal: The p99 query latency measured over one hour is at or below 50 milliseconds.
+    priority: should
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []

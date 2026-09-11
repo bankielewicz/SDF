@@ -1,0 +1,79 @@
+{
+  "skill_name": "validating-quality",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/verify STORY-014",
+      "expected_output": "One .devforgeai/reports/STORY-014-qa.yaml holding seven checks and a PASS handoff naming the next ready story.",
+      "files": [],
+      "expectations": [
+        "The file .devforgeai/reports/STORY-014-qa.yaml carries the sixteen top-level keys in the order schema, id, phase, status, produced_by, consumes, open_questions, mode, verified_on, build_report, coverage, checks, findings, blockers, deferrals, summary.",
+        "The mode value is 'light' and the checks list holds seven entries whose name values are ac-compliance, code-review, anti-pattern-scan, constraint-validation, coverage-review, dead-code, deferral-validation.",
+        "Every findings entry carries a category from the eleven-value enum, a severity from blocker, high, medium, low, and a disposition from fix, defer, accept.",
+        "The coverage.overall value equals the coverage.overall value of .devforgeai/reports/STORY-014-build.yaml.",
+        "No file under the project source roots differs from the bytes the case set up."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "/verify STORY-014 --deep",
+      "expected_output": "A ten-entry checks list adding security-audit, quality-metrics, and architecture-review, with the OWASP categories as a closed set.",
+      "files": [],
+      "expectations": [
+        "The mode value is 'deep' and the checks list holds ten entries.",
+        "Every security finding carries an owasp field whose value is one of A01 through A10.",
+        "Every complexity and duplication finding carries a measured value and a limit value, and the limit equals the config.toml [verify] key for that kind.",
+        "The transcript holds one invocation each of security-auditor, code-quality-auditor, and adr-conformance-reviewer."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "/verify STORY-018",
+      "expected_output": "A blocker-severity anti-pattern match produces a SEND BACK to Build citing the FIND ids.",
+      "files": [],
+      "expectations": [
+        "The handoff Gate line reads 'SEND BACK to Build'.",
+        "The handoff Next line begins '/build STORY-018 --remedy FIND-'.",
+        "The handoff Then line is '/verify STORY-018 --resume'.",
+        "The blockers list of .devforgeai/reports/STORY-018-qa.yaml holds every findings id whose severity is blocker, and every one of those findings carries disposition 'fix'."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/verify STORY-022",
+      "expected_output": "A criterion the code satisfies while its requirement asks for more produces a SEND BACK to Plan citing the AC id.",
+      "files": [],
+      "expectations": [
+        "The handoff Gate line reads 'SEND BACK to Plan'.",
+        "The handoff Next line begins '/plan EPIC-' and holds '--remedy AC-'.",
+        "The finding that produced it carries category 'spec-gap' and a relates_to value matching AC-nnn.",
+        ".devforgeai/stories/STORY-022.md is byte-identical to the file the case set up."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/verify STORY-025",
+      "expected_output": "A deferred Definition-of-Done item is recorded with a target, a reason, and the constraint it cites.",
+      "files": [],
+      "expectations": [
+        "The deferrals list holds one entry whose id equals a findings entry with disposition 'defer'.",
+        "That entry carries the keys id, story, dod_item, target, reason, opened_on, con_or_ap in that order.",
+        "Its reason is one of dependency_missing, scope_boundary, decision_pending, external_blocker, tooling_absent.",
+        "Its target matches STORY-nnn or ADR-nnn and a document with that id exists.",
+        "Its opened_on equals the report's verified_on value."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "/verify STORY-027",
+      "expected_output": "A deferral whose target defers the same item back is reported as a blocking finding and the gate sends back.",
+      "files": [],
+      "expectations": [
+        "The handoff Gate line reads 'SEND BACK to Build' and names verify-deferral-cycle or verify-light.",
+        "One findings entry carries category 'deferral' and severity 'blocker'.",
+        "Its evidence line names the path of the other story's QA report.",
+        "The deferrals list of .devforgeai/reports/STORY-027-qa.yaml holds no entry whose target is STORY-031."
+      ]
+    }
+  ]
+}

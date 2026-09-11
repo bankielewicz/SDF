@@ -1,0 +1,32 @@
+schema: devforgeai/report/1
+id: IDEA-001
+phase: discover
+status: send_back
+produced_by: devforgeai-cli
+consumes: [IDEA-001]
+open_questions: []
+started_at: 2026-09-05T09:14:02Z
+finished_at: 2026-09-05T09:15:40Z
+cli_version: 1.0.0
+degraded: false
+gate:
+  result: SEND_BACK
+  send_back_to: explore
+  checks:
+    - id: epic-flow-resolves
+      kind: column_contains_all
+      status: fail
+      severity: block
+      reason: "DFA-E220 two core flows do not resolve to an epic"
+      evidence:
+        unresolved: [FLOW-002, FLOW-004]
+findings:
+  - id: FLOW-002
+    severity: block
+    summary: "FLOW-002 outcome names a head count that no step produces"
+    evidence: "Core flows row FLOW-002: steps end at answer yes or no"
+  - id: FLOW-004
+    severity: block
+    summary: "FLOW-004 duplicates FLOW-003"
+    evidence: "Core flows rows FLOW-003 and FLOW-004 share trigger and outcome"
+handoff: []

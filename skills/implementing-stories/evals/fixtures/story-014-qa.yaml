@@ -1,0 +1,33 @@
+schema: devforgeai/qa-report/1
+id: STORY-014
+phase: verify
+status: send_back
+produced_by: validating-quality
+consumes: [STORY-014]
+open_questions: []
+mode: deep
+findings:
+  - id: FIND-002
+    severity: block
+    category: implementation-gap
+    relates_to: AC-002
+    file: tests/application/checkout/place_order_spec.ext
+    line: 34
+    summary: No test asserts the empty-cart message.
+    evidence: The spec file asserts status 422 and reads no message field, so AC-002's Then clause is half covered.
+  - id: FIND-003
+    severity: warn
+    category: style
+    relates_to: AC-001
+    file: src/application/checkout/place_order.ext
+    line: 12
+    summary: The use case logs the shopper identifier.
+    evidence: coding-standards.md ## Logging forbids a shopper identifier in a log line.
+  - id: FIND-005
+    severity: block
+    category: implementation-gap
+    relates_to: AC-006
+    file: src/application/checkout/place_order.ext
+    line: 58
+    summary: A repeated placement writes a second order.
+    evidence: No branch returns status 409, so the second placement of one cart creates a new identifier.

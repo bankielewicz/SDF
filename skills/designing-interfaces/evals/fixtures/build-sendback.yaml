@@ -1,0 +1,52 @@
+schema: devforgeai/report/1
+id: STORY-014
+phase: build
+status: send_back
+produced_by: devforgeai-cli
+consumes: [STORY-014, UI-003, UI-004]
+open_questions: []
+started_at: 2026-09-11T09:12:40Z
+finished_at: 2026-09-11T09:19:02Z
+cli_version: 1.0.0
+degraded: false
+gate:
+  result: SEND_BACK
+  send_back_to: design
+  checks:
+    - id: build-design
+      kind: design_tokens
+      status: pass
+      severity: warn
+      reason: ""
+      evidence:
+        files: 14
+        violations: 0
+verifiers:
+  ac_compliance:
+    subagent: ac-compliance-verifier
+    ingested_at: 2026-09-11T09:18:44Z
+    passed: 2
+    total: 3
+    unit: ACs
+    findings:
+      - id: FIND-004
+        severity: block
+        summary: AC-009 needs a partial state that UI-003 does not carry
+        evidence: ".devforgeai/ui-specs/UI-003.md ## States lists default, loading, empty, error and no partial row; AC-009 says the invoice shows as partly settled with the remaining balance and focus stays on the payment row"
+findings:
+  - id: FIND-004
+    severity: block
+    summary: AC-009 needs a partial state that UI-003 does not carry
+    evidence: ".devforgeai/ui-specs/UI-003.md ## States lists default, loading, empty, error and no partial row; AC-009 says the invoice shows as partly settled with the remaining balance and focus stays on the payment row"
+    refs: [UI-003, AC-009]
+handoff:
+  - "Phase     4 · Build          STORY-014 · checkout-review"
+  - "Done      2 of 3 ACs implemented"
+  - "Gate      SEND BACK to Design  UI-003 AC-009"
+  - "Found     FIND-004 AC-009 needs a partial state that UI-003 does not carry"
+  - ""
+  - "Next      /design UI-003 --remedy AC-009"
+  - "Then      /build STORY-014 --resume"
+  - "Blocked   none"
+  - ""
+  - "Full report: .devforgeai/reports/STORY-014-build.yaml"

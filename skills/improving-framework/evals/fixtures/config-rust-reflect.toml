@@ -1,0 +1,60 @@
+schema = "devforgeai/config/1"
+generated_at = "2026-09-11T09:14:02Z"
+cli_version = "1.0.0"
+degraded = false
+
+[[stack]]
+id = "primary"
+markers = ["project.manifest"]
+package_manager = ""
+source_roots = ["src"]
+test_command = "./ci/test"
+coverage_command = "./ci/coverage"
+coverage_format = "cobertura"
+coverage_paths = ["coverage/cobertura.xml"]
+lint_command = "./ci/lint"
+complexity_command = "./ci/complexity"
+timeout_secs = 900
+env = {}
+
+[frontend]
+globs = ["**/*.css", "**/*.html"]
+tokens_path = ".devforgeai/brand/tokens.json"
+exclude = ["**/vendor/**"]
+
+[[layer]]
+name = "domain"
+globs = ["**/domain/**", "**/entities/**"]
+coverage_min = 95.0
+
+[[layer]]
+name = "application"
+globs = ["**/application/**", "**/services/**"]
+coverage_min = 85.0
+
+[[layer]]
+name = "infrastructure"
+globs = ["**/infrastructure/**", "**/adapters/**"]
+coverage_min = 80.0
+
+[[layer]]
+name = "interface"
+globs = ["**/api/**", "**/controllers/**", "**/ui/**"]
+coverage_min = 70.0
+
+[coverage]
+overall_min = 80.0
+unassigned_policy = "report"
+exclude = ["**/tests/**", "**/*_spec.*"]
+
+[reflect]
+session_root = ".sessions"
+session_key = "fixture"
+window_days = 14
+
+[[verifier]]
+name = "ac-compliance-verifier"
+phase = "verify"
+report_field = "verifiers.ac_compliance"
+unit = "ACs"
+required = true

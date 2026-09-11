@@ -1,0 +1,56 @@
+{
+  "schema": "devforgeai/explore-sketch-request/1",
+  "id": "IDEA-001",
+  "phase": "explore",
+  "status": "recorded",
+  "produced_by": "exploring-ideas",
+  "consumes": [],
+  "open_questions": [],
+  "mode": "sketch",
+  "idea_id": "IDEA-001",
+  "brief_path": ".devforgeai/explore/brief.md",
+  "out_dir": ".devforgeai/explore/mockups",
+  "seed_data_path": ".devforgeai/explore/seed-data.json",
+  "fidelity": "wireframe",
+  "flows": [
+    {
+      "flow_id": "FLOW-001",
+      "name": "Raise a refund",
+      "actor": "Practice manager",
+      "steps": ["Open the settled payment", "Raise a refund", "Set amount and date", "Submit"],
+      "outcome": "The refund is raised and awaiting the bank"
+    },
+    {
+      "flow_id": "FLOW-002",
+      "name": "Follow refunds to the bank",
+      "actor": "Bookkeeper",
+      "steps": ["Open the refund list", "Filter to awaiting the bank", "Mark the cleared ones"],
+      "outcome": "Every refund is either awaiting the bank or cleared"
+    },
+    {
+      "flow_id": "FLOW-003",
+      "name": "Close the week",
+      "actor": "Practice manager",
+      "steps": ["Import the week", "Open the review screen", "Match each payment to an invoice", "Accept"],
+      "outcome": "Every payment for the week is matched or has a reason"
+    },
+    {
+      "flow_id": "FLOW-004",
+      "name": "Export the quarter",
+      "actor": "Practice manager",
+      "steps": ["Choose the period", "Export the reconciled rows", "Send the file"],
+      "outcome": "The accountant has the quarter in one file"
+    }
+  ],
+  "brand": {
+    "name": "Tallyroom",
+    "palette_hint": "warm neutral paper with one deep green",
+    "type_hint": "a humanist sans with a mono for amounts"
+  },
+  "constraints": {
+    "no_backend": true,
+    "no_auth": true,
+    "no_persistence": true,
+    "screens_per_flow_max": 3
+  }
+}

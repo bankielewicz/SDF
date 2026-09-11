@@ -1,0 +1,16 @@
+module domain.limit
+
+const PAGE_MAX = 50
+
+function apply_limit(requested, subject, rows):
+    owned = []
+    for row in rows:
+        if row.subject == subject:
+            owned.append(row)
+    count = requested
+    if count > PAGE_MAX:
+        count = PAGE_MAX
+    return owned[0:count]
+
+function page_max():
+    return PAGE_MAX

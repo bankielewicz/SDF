@@ -1,0 +1,32 @@
+schema: devforgeai/report/1
+id: IDEA-001
+phase: discover
+status: send_back
+produced_by: devforgeai-cli
+consumes: [IDEA-001]
+open_questions: []
+started_at: 2026-09-05T11:02:18Z
+finished_at: 2026-09-05T11:03:51Z
+cli_version: 1.0.0
+degraded: false
+gate:
+  result: SEND_BACK
+  send_back_to: explore
+  checks:
+    - id: epic-flow-resolves
+      kind: column_contains_all
+      status: fail
+      severity: block
+      reason: "DFA-E220 two cited flows do not resolve to an epic"
+      evidence:
+        unresolved: [FLOW-002, FLOW-009]
+findings:
+  - id: FLOW-002
+    severity: block
+    summary: "FLOW-002 outcome names a head count that no step produces"
+    evidence: "Core flows row FLOW-002: steps end at answer yes or no"
+  - id: FLOW-009
+    severity: block
+    summary: "FLOW-009 is cited by an epic draft and appears in no brief row"
+    evidence: "EPIC-004 consumes FLOW-009, which Core flows does not hold"
+handoff: []

@@ -1,0 +1,30 @@
+schema: devforgeai/release-report/1
+id: v0.3.0
+phase: release
+status: send_back
+produced_by: devforgeai-cli
+consumes: [STORY-025, STORY-027, STORY-031]
+open_questions: []
+started_at: 2026-09-11T08:10:00Z
+finished_at: 2026-09-11T08:12:00Z
+cli_version: 1.0.0
+degraded: false
+gate:
+  result: SEND_BACK
+  send_back_to: verify
+  checks:
+    - id: release-deferrals
+      kind: verifier_pass
+      status: fail
+      severity: block
+      reason: "DFA-E317 a deferral blocks deployment on the target platform"
+    - id: release-stories
+      kind: field_in_enum
+      status: pass
+      severity: block
+      reason: ""
+findings:
+  - id: FIND-024
+    severity: block
+    summary: The retry budget deferral blocks the boundary the platform enforces.
+    evidence: reports/STORY-027-qa.yaml deferrals[0] target STORY-031 reason dependency_missing

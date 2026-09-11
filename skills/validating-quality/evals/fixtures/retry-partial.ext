@@ -1,0 +1,17 @@
+module application.retry
+
+const ATTEMPT_MAX = 3
+
+function submit_with_retry(order, submit):
+    attempt = 0
+    wait = 1
+    while attempt < ATTEMPT_MAX:
+        result = submit(order)
+        if result.ok:
+            return result
+        attempt = attempt + 1
+        wait = wait * 2
+    return failure(order.id, "retry budget spent")
+
+function failure(id, reason):
+    return Result(ok: false, id: id, reason: reason)

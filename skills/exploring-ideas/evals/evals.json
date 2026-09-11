@@ -1,0 +1,110 @@
+{
+  "skill_name": "exploring-ideas",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/explore \"a way for small dental practices to chase unpaid invoices\"",
+      "expected_output": ".devforgeai/explore/brief.md at status: decided and .devforgeai/explore/decision.yaml",
+      "files": [],
+      "expectations": [
+        "brief has the twelve headings in template order",
+        "## Core flows holds 3 to 5 rows",
+        "every ID matches ^FLOW-[0-9]{3}$",
+        "## Success signal holds exactly one line",
+        "frontmatter keys are the seven of §5 in order"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "/explore \"an app that tells you which houseplant is dying\" then the user answers Kill",
+      "expected_output": "decision.yaml with decision: kill",
+      "files": [],
+      "expectations": [
+        "decision is kill",
+        "revisit_on is null",
+        "carry_forward is []",
+        "reason is 15 to 40 words",
+        ".explore-prototype/ is absent"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "/explore \"shift swapping for restaurant staff\" then the user answers Park and picks the 90-day option",
+      "expected_output": "decision.yaml with decision: park",
+      "files": [],
+      "expectations": [
+        "decision is park",
+        "revisit_on parses as YYYY-MM-DD and is later than decided_on",
+        "carry_forward is []",
+        "the brief is still on disk",
+        ".explore-prototype/ is still on disk"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/explore \"invoice chasing for dental practices\" then the user answers Promote",
+      "expected_output": "decision.yaml with decision: promote",
+      "files": [],
+      "expectations": [
+        "carry_forward holds exactly seven entries in the order given in the template",
+        "every path in it exists",
+        ".explore-prototype/ is absent",
+        "consumer values are the four skill names of the carry-forward table"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/explore IDEA-001 --remedy FLOW-002,FLOW-004 with a prior brief and a Discover report on disk",
+      "expected_output": "a brief whose FLOW-002 and FLOW-004 rows changed and whose other rows did not",
+      "files": [
+        "evals/fixtures/brief-4-flows.md",
+        "evals/fixtures/discover-sendback.yaml"
+      ],
+      "expectations": [
+        "FLOW-001 and FLOW-003 rows are byte-identical to the prior brief",
+        "FLOW-002 and FLOW-004 rows differ",
+        "remedied_flows is [\"FLOW-002\",\"FLOW-004\"]",
+        "no web search ran",
+        "## Competitor scan is unchanged"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "/explore IDEA-001 --remedy FLOW-002,FLOW-009 where FLOW-009 is absent from the brief",
+      "expected_output": "a brief with an open_questions entry naming FLOW-009",
+      "files": [
+        "evals/fixtures/brief-4-flows.md",
+        "evals/fixtures/discover-sendback-unknown.yaml"
+      ],
+      "expectations": [
+        "open_questions holds a line containing FLOW-009",
+        "the FLOW-002 row differs from the prior brief",
+        "## Core flows still holds 3 to 5 rows",
+        "no row with id FLOW-009 was invented"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "/explore \"a budgeting tool for freelancers\" where state.toml shows [explore].started_at six days ago",
+      "expected_output": "a brief at status: mocked and no decision.yaml",
+      "files": [],
+      "expectations": [
+        ".devforgeai/explore/decision.yaml is absent",
+        "the run reached step 9 and asked the decision question",
+        "the three option labels are Kill, Park, Promote"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "/explore \"a tool for tracking what a book club has read\"",
+      "expected_output": ".devforgeai/explore/sketch-request.json matching the sketch-mode input contract",
+      "files": [],
+      "expectations": [
+        "the file carries the seven §5 top-level keys and mode: \"sketch\"",
+        "flows[] holds one object per ## Core flows row with the same FLOW-nnn ids in the same order",
+        "out_dir is .devforgeai/explore/mockups and seed_data_path is .devforgeai/explore/seed-data.json",
+        "constraints holds the four fixed keys with no_backend, no_auth and no_persistence true"
+      ]
+    }
+  ]
+}

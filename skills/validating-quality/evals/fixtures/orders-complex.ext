@@ -1,0 +1,47 @@
+module api.orders
+
+import application.checkout
+
+function get_order(request):
+    id = request.query("id")
+    row = load_order(id)
+    return respond(200, row)
+
+function post_order(request):
+    id = request.body("id")
+    total = request.body("total")
+    kind = request.body("kind")
+    region = request.body("region")
+    note = request.body("note")
+    if id == "":
+        return respond(400, "id")
+    if total == "":
+        return respond(400, "total")
+    if kind == "":
+        kind = "standard"
+    if region == "":
+        region = "default"
+    if note != "":
+        if len(note) > 200:
+            return respond(400, "note")
+        if contains(note, "<"):
+            return respond(400, "note")
+    if kind == "standard":
+        order = run_checkout(id, total)
+    else:
+        if kind == "priority":
+            order = run_checkout(id, total)
+        else:
+            return respond(400, "kind")
+    if order.state == "rejected":
+        return respond(409, order.id)
+    return respond(201, order.id)
+
+function load_order(id):
+    return query("select * from orders where id = " + id)
+
+function respond(code, body):
+    return Response(code: code, body: body)
+
+function unused_legacy_shape(order):
+    return Response(code: 200, body: order.id)

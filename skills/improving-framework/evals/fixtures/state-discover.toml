@@ -1,0 +1,35 @@
+schema = "devforgeai/state/1"
+updated_at = "2026-09-11T09:14:02Z"
+
+[current]
+phase = "discover"
+id = "IDEA-001"
+
+[active]
+explore = "IDEA-001"
+discover = "IDEA-001"
+constitute = "IDEA-001"
+plan = "SPRINT-001"
+build = "STORY-014"
+verify = "STORY-014"
+release = ""
+
+[last_gate]
+phase = "discover"
+id = "IDEA-001"
+result = "SEND_BACK"
+at = "2026-09-03T11:02:41Z"
+report = ".devforgeai/reports/IDEA-001-discover.yaml"
+send_back_to = "explore"
+failed_checks = ["discover-questions"]
+
+[last_handoff]
+rendered_at = "2026-09-03T11:02:42Z"
+phase = "discover"
+id = "IDEA-001"
+lines = []
+
+[stop_hook]
+block_count = 0
+blocked_phase = ""
+blocked_id = ""

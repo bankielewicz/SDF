@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 64" role="img">
+  <title>Checkout</title>
+  <path d="M12 44 L12 20 L28 20 L28 26 L18 26 L18 30 L26 30 L26 36 L18 36 L18 44 Z" fill="#1a5e4a"/>
+  <path d="M36 20 L42 20 L42 38 L54 38 L54 44 L36 44 Z" fill="#1a5e4a"/>
+  <path d="M62 32 A 12 12 0 1 1 86 32 A 12 12 0 1 1 62 32 Z M68 32 A 6 6 0 1 0 80 32 A 6 6 0 1 0 68 32 Z" fill="#b4530a"/>
+  <path d="M96 20 L102 20 L102 44 L96 44 Z" fill="currentColor"/>
+</svg>

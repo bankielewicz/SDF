@@ -1,0 +1,62 @@
+schema: devforgeai/report/1
+id: STORY-014
+phase: build
+status: fail
+produced_by: devforgeai-cli
+consumes: [STORY-014, SPRINT-001]
+open_questions: []
+started_at: 2026-09-09T08:41:00Z
+finished_at: 2026-09-09T08:52:18Z
+cli_version: 1.0.0
+degraded: false
+gate:
+  result: FAIL
+  send_back_to: ""
+  checks:
+    - id: build-tests
+      kind: tests_pass
+      status: pass
+      severity: block
+      reason: ""
+      evidence:
+        exit_code: 0
+        duration_ms: 38940
+        passed: 198
+        failed: 0
+    - id: build-coverage
+      kind: coverage_min
+      status: fail
+      severity: block
+      reason: DFA-E312 domain 61.0 < 95.0
+      evidence:
+        duration_ms: 8802
+    - id: build-lint
+      kind: lint_clean
+      status: pass
+      severity: block
+      reason: ""
+      evidence:
+        exit_code: 0
+        duration_ms: 2904
+coverage:
+  format: cobertura
+  source: coverage/cobertura.xml
+  overall: 71.2
+  layers:
+    - name: domain
+      covered: 318
+      total: 521
+      percent: 61.0
+      min: 95.0
+      status: fail
+    - name: application
+      covered: 289
+      total: 332
+      percent: 87.0
+      min: 85.0
+      status: pass
+  unassigned:
+    files: 2
+    percent: 44.0
+findings: []
+handoff: []

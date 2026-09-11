@@ -1,0 +1,62 @@
+# Session fixture line numbers
+
+The three `session-*.jsonl` fixtures carry slash-command lines at fixed line
+numbers, and two `cases.jsonl` entries assert those numbers through
+`expect.args.evidence_lines`. This file records the numbers and how they were
+counted, so a change to a fixture is visible against what the cases expect.
+
+How they were counted. Each file is JSON Lines: one JSON object per line, no
+enclosing array, terminated by a single newline. Line numbers are 1-based and
+count every line of the file, a malformed line included, which is the counting
+`devforgeai report aggregate` applies when it fills `sessions.commands[].line`.
+The numbers below are `grep -n` output over the exact bytes of each fixture:
+
+    grep -n '"content":"/explore IDEA-001 --remedy FLOW-002"' session-explore-remedy-a.jsonl
+    grep -n '"content":"/explore IDEA-001 --remedy FLOW-002"' session-explore-remedy-b.jsonl
+    grep -n '"content":"/build STORY-014 --resume"' session-verify-build-loop.jsonl
+
+A command line is the shape the aggregate matches: `type` of `user`, `isMeta`
+of `false`, and `message.content` a string opening with a slash command.
+
+## session-explore-remedy-a.jsonl
+
+    session id   11111111-1111-4111-8111-111111111111
+    lines        24
+    command      /explore IDEA-001 --remedy FLOW-002
+    at lines     7, 19
+
+## session-explore-remedy-b.jsonl
+
+    session id   22222222-2222-4222-8222-222222222222
+    lines        36
+    command      /explore IDEA-001 --remedy FLOW-002
+    at line      31
+
+Case `rf-03-repeat-explore-remedy` asserts `evidence_lines` of 7, 19, 31 across
+the two files: three typings of one remedy command, two sessions, one repeat
+group whose `key` is `IDEA-001|FLOW-002` and whose `count` is 3.
+
+## session-verify-build-loop.jsonl
+
+    session id   33333333-3333-4333-8333-333333333333
+    lines        62
+    command      /verify STORY-014            at lines 8, 24, 40
+    command      /build STORY-014 --resume    at lines 12, 28, 44, 58
+
+Case `rf-04-repeat-verify-build` asserts `evidence_lines` of 12, 28, 44 and a
+`count` of 3. Four `--resume` typings appear in the file and three of them are
+the send-back loop: each of lines 12, 28, and 44 follows a `/verify STORY-014`
+run whose `verify-acs` check failed on AC-007, which is the triple
+`report-verify-fail-x3.yaml` records as `runs: 3`. The typing at line 58
+follows no failed verify run, so it belongs to no send-back and the count stays
+at 3. `evidence` holds at most five entries, so all three fit.
+
+## Report fixture dates the cases assert
+
+    STORY-009  report-qa-deferrals-con002.yaml  opened_on 2026-08-01  3 deferrals, CON-002
+    STORY-011  report-qa-deferrals-ap004.yaml   opened_on 2026-08-14  1 deferral,  AP-004
+    STORY-014  report-qa-deferrals-none.yaml    opened_on 2026-09-02  1 deferral,  no citation
+
+Case `rf-05-debt-groups` takes `as_of` as 2026-09-11 and asserts a total of 5
+and an `oldest_days` of 41. The ages in calendar days from `as_of`: 2026-08-01
+is 41 days, 2026-08-14 is 28, 2026-09-02 is 9.

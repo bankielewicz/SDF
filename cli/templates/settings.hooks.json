@@ -1,0 +1,147 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|fork",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "@@DEVFORGEAI@@",
+            "args": ["hook", "run", "session-start"],
+            "timeout": 120,
+            "statusMessage": "devforgeai: detecting stack"
+          }
+        ]
+      }
+    ],
+    "UserPromptExpansion": [
+      {
+        "matcher": "explore|discover|constitute|plan|build|verify|release|design|reflect",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "@@DEVFORGEAI@@",
+            "args": ["hook", "run", "prompt-expansion"],
+            "timeout": 30,
+            "statusMessage": "devforgeai: phase gate"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "@@DEVFORGEAI@@",
+            "args": ["hook", "run", "pre-tool-use"],
+            "timeout": 600,
+            "statusMessage": "devforgeai: checking the write"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "@@DEVFORGEAI@@",
+            "args": ["hook", "run", "pre-tool-use"],
+            "timeout": 600,
+            "statusMessage": "devforgeai: checking the command"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|NotebookEdit|Bash|PowerShell|Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "@@DEVFORGEAI@@",
+            "args": ["hook", "run", "trust-check"],
+            "timeout": 600,
+            "statusMessage": "devforgeai: trust"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "@@DEVFORGEAI@@",
+            "args": ["hook", "run", "post-tool-use"],
+            "if": "Write(**/.devforgeai/**)",
+            "timeout": 60
+          },
+          {
+            "type": "command",
+            "command": "@@DEVFORGEAI@@",
+            "args": ["hook", "run", "post-tool-use"],
+            "if": "Edit(**/.devforgeai/**)",
+            "timeout": 60
+          },
+          {
+            "type": "command",
+            "command": "@@DEVFORGEAI@@",
+            "args": ["hook", "run", "post-tool-use"],
+            "if": "NotebookEdit(**/.devforgeai/**)",
+            "timeout": 60
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "@@DEVFORGEAI@@",
+            "args": ["hook", "run", "post-tool-use"],
+            "if": "Bash(@@TEST_COMMAND@@)",
+            "async": true,
+            "timeout": 900,
+            "statusMessage": "devforgeai: partial build gate"
+          },
+          {
+            "type": "command",
+            "command": "@@DEVFORGEAI@@",
+            "args": ["hook", "run", "post-tool-use"],
+            "if": "PowerShell(@@TEST_COMMAND@@)",
+            "async": true,
+            "timeout": 900,
+            "statusMessage": "devforgeai: partial build gate"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "@@DEVFORGEAI@@",
+            "args": ["hook", "run", "stop"],
+            "timeout": 900,
+            "statusMessage": "devforgeai: phase gate"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "@@VERIFIERS@@",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "@@DEVFORGEAI@@",
+            "args": ["hook", "run", "subagent-stop"],
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}

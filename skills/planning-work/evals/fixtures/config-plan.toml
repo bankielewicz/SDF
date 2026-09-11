@@ -1,0 +1,7 @@
+schema = "devforgeai/config/1"
+generated_at = "2026-09-10T09:00:00Z"
+cli_version = "1.0.0"
+degraded = true
+[plan]
+sprint_capacity_points = 20
+story_points = [1, 2, 3, 5, 8]

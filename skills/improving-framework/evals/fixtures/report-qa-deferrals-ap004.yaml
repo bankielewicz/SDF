@@ -1,0 +1,68 @@
+schema: devforgeai/qa-report/1
+id: STORY-011
+phase: verify
+status: pass
+produced_by: validating-quality
+consumes: [STORY-011, AC-001, AP-004]
+open_questions: []
+mode: light
+verified_on: 2026-08-14
+build_report: .devforgeai/reports/STORY-011-build.yaml
+coverage:
+  source: .devforgeai/reports/STORY-011-build.yaml
+  overall: 86.1
+  layers:
+    - name: domain
+      percent: 96.0
+      min: 95.0
+      status: pass
+checks:
+  - name: ac-compliance
+    run_by: ac-compliance-verifier
+    status: pass
+  - name: code-review
+    run_by: standards-reviewer
+    status: pass
+  - name: anti-pattern-scan
+    run_by: anti-pattern-scanner
+    status: pass
+  - name: constraint-validation
+    run_by: constraint-auditor
+    status: pass
+  - name: coverage-review
+    run_by: coverage-gap-auditor
+    status: pass
+  - name: dead-code
+    run_by: dead-code-detector
+    status: pass
+  - name: deferral-validation
+    run_by: deferral-validator
+    status: pass
+findings:
+  - id: FIND-018
+    category: deferral
+    severity: medium
+    file: ""
+    line: 0
+    relates_to: AP-004
+    disposition: defer
+    summary: AP-004 the adapter stops formatting a store row for the caller
+    evidence: .devforgeai/stories/STORY-011.md names the item and the story that carries it instead.
+    found_by: deferral-validator
+blockers: []
+deferrals:
+  - id: FIND-018
+    story: STORY-011
+    dod_item: AP-004 the adapter stops formatting a store row for the caller
+    target: STORY-034
+    reason: scope_boundary
+    opened_on: 2026-08-14
+    con_or_ap: "AP-004"
+summary:
+  checks: 7
+  findings: 1
+  blockers: 0
+  high: 0
+  medium: 1
+  low: 0
+  deferrals: 1

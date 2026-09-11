@@ -1,0 +1,10 @@
+[plan]
+sprint_capacity_points = 20
+story_points = [1, 2, 3, 5, 8]
+
+[[verifier]]
+name = "story-invest-auditor"
+phase = "plan"
+report_field = "verifiers.story_invest"
+unit = "stories"
+required = true

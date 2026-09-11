@@ -1,0 +1,57 @@
+schema = "devforgeai/config/1"
+generated_at = "2026-09-11T09:14:02Z"
+cli_version = "1.0.0"
+degraded = true
+
+[build]
+worktree_root = "wt"
+branch_prefix = "story/"
+base_ref = "HEAD"
+complexity_max = 10
+duplication_max_percent = 5.0
+
+[[layer]]
+name = "domain"
+globs = ["**/domain/**", "**/entities/**"]
+coverage_min = 95.0
+
+[[layer]]
+name = "application"
+globs = ["**/application/**", "**/services/**", "**/usecases/**"]
+coverage_min = 85.0
+
+[[layer]]
+name = "infrastructure"
+globs = ["**/infrastructure/**", "**/adapters/**", "**/repositories/**"]
+coverage_min = 80.0
+
+[[layer]]
+name = "interface"
+globs = ["**/api/**", "**/controllers/**", "**/routes/**", "**/cli/**", "**/ui/**", "**/components/**", "**/pages/**"]
+coverage_min = 70.0
+
+[coverage]
+overall_min = 80.0
+unassigned_policy = "report"
+exclude = ["**/tests/**", "**/*_spec.*"]
+
+[[verifier]]
+name = "ac-test-writer"
+phase = "build"
+report_field = "verifiers.ac_testable"
+unit = "AC"
+required = true
+
+[[verifier]]
+name = "story-ac-verifier"
+phase = "build"
+report_field = "verifiers.story_ac"
+unit = "ACs"
+required = true
+
+[[verifier]]
+name = "context-validator"
+phase = "build"
+report_field = "verifiers.context"
+unit = "files"
+required = true

@@ -1,0 +1,44 @@
+schema: devforgeai/explore-decision/1
+id: IDEA-nnn
+phase: explore
+status: recorded
+produced_by: exploring-ideas
+consumes: []
+open_questions: []
+decision: kill|park|promote
+decided_on: YYYY-MM-DD
+reason: >-
+  <one sentence, 15 to 40 words, naming the evidence that produced this decision>
+revisit_on: YYYY-MM-DD|null
+elapsed_days: 0
+remedied_flows: []
+carry_forward: []
+# carry_forward when decision is promote, these seven entries in this order:
+#   - path: .devforgeai/explore/brief.md
+#     sections: [Problem statement, Target user]
+#     becomes: discovery brief and first persona
+#     consumer: discovering-requirements
+#   - path: .devforgeai/explore/brief.md
+#     sections: [Core flows]
+#     becomes: epic candidates with draft acceptance criteria
+#     consumer: discovering-requirements
+#   - path: .devforgeai/explore/brief.md
+#     sections: [Non-goals]
+#     becomes: architecture-constraints.md and anti-patterns.md entries
+#     consumer: establishing-context
+#   - path: .devforgeai/explore/brief.md
+#     sections: [Competitor scan, Technology scan]
+#     becomes: tech stack candidates and ADR context
+#     consumer: establishing-context
+#   - path: .devforgeai/explore/mockups/
+#     sections: []
+#     becomes: UI specifications attached to stories
+#     consumer: designing-interfaces
+#   - path: .devforgeai/explore/seed-data.json
+#     sections: []
+#     becomes: test fixtures and example rows
+#     consumer: implementing-stories
+#   - path: .devforgeai/explore/decision.yaml
+#     sections: []
+#     becomes: ADR-000, the reason this project exists
+#     consumer: establishing-context

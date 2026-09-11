@@ -1,0 +1,35 @@
+schema: devforgeai/requirements/1
+id: IDEA-004
+phase: discover
+status: accepted
+produced_by: discovering-requirements
+consumes: [IDEA-004]
+open_questions: []
+revision: 1
+revision_log: []
+accepted_by: user
+accepted_at: 2026-09-10T14:22:05Z
+personas:
+  - id: PERSONA-001
+    name: Shopper
+    description: A signed-in customer buying from the storefront.
+    goal: Complete a purchase without re-entering data.
+epics:
+  - id: EPIC-002
+    title: Order history
+    scope: A shopper reads past orders.
+    out_of_scope:
+      - The system does not export orders.
+    success_metric: Order history opens in under 1 second.
+    requirements: [REQ-011]
+requirements:
+  - id: REQ-011
+    actor: PERSONA-001
+    statement: A shopper sees recent orders on the history page.
+    rationale: Shoppers re-order from history.
+    acceptance_signal: The history page shows recent orders.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []

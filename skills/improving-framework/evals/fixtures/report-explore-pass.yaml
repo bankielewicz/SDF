@@ -1,0 +1,46 @@
+schema: devforgeai/report/1
+id: IDEA-001
+phase: explore
+status: pass
+produced_by: devforgeai-cli
+consumes: [IDEA-001, FLOW-001, FLOW-002]
+open_questions: []
+started_at: 2026-08-20T08:15:00Z
+finished_at: 2026-08-20T16:44:09Z
+cli_version: 1.0.0
+degraded: false
+gate:
+  result: PASS
+  send_back_to: ""
+  checks:
+    - id: time-box
+      kind: elapsed_days
+      status: pass
+      severity: block
+      reason: ""
+      evidence:
+        days: 3
+    - id: decision-exists
+      kind: file_exists
+      status: pass
+      severity: block
+      reason: ""
+      evidence:
+        paths: 1
+    - id: remedy-flows-present
+      kind: column_contains_all
+      status: pass
+      severity: block
+      reason: ""
+      evidence:
+        flows: 2
+verifiers:
+  kill_case:
+    subagent: kill-case-builder
+    ingested_at: 2026-08-20T16:40:11Z
+    passed: 4
+    total: 4
+    unit: objections
+    findings: []
+findings: []
+handoff: []

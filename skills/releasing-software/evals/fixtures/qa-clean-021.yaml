@@ -1,0 +1,65 @@
+schema: devforgeai/qa-report/1
+id: STORY-021
+phase: verify
+status: pass
+produced_by: validating-quality
+consumes: [STORY-021, AC-006, AC-007, CON-003]
+open_questions: []
+mode: light
+verified_on: 2026-09-11
+build_report: .devforgeai/reports/STORY-021-build.yaml
+coverage:
+  source: .devforgeai/reports/STORY-021-build.yaml
+  overall: 88.1
+  layers:
+    - name: application
+      percent: 91.4
+      min: 85.0
+      status: pass
+checks:
+  - name: ac-compliance
+    verifier: ac-compliance-verifier
+    examined: 3
+    passed: 3
+    result: pass
+  - name: code-review
+    verifier: standards-reviewer
+    examined: 2
+    passed: 2
+    result: pass
+  - name: anti-pattern-scan
+    verifier: anti-pattern-scanner
+    examined: 2
+    passed: 2
+    result: pass
+  - name: constraint-validation
+    verifier: constraint-auditor
+    examined: 1
+    passed: 1
+    result: pass
+  - name: coverage-review
+    verifier: coverage-gap-auditor
+    examined: 4
+    passed: 4
+    result: pass
+  - name: dead-code
+    verifier: dead-code-detector
+    examined: 6
+    passed: 6
+    result: pass
+  - name: deferral-validation
+    verifier: deferral-validator
+    examined: 0
+    passed: 0
+    result: skip
+findings: []
+blockers: []
+deferrals: []
+summary:
+  checks: 7
+  findings: 0
+  blockers: 0
+  high: 0
+  medium: 0
+  low: 0
+  deferrals: 0

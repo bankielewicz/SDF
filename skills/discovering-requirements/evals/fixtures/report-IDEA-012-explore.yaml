@@ -1,0 +1,26 @@
+schema: devforgeai/report/1
+id: IDEA-012
+phase: explore
+status: pass
+produced_by: devforgeai-cli
+consumes: []
+open_questions: []
+started_at: 2026-08-18T09:00:00Z
+finished_at: 2026-08-18T09:06:00Z
+cli_version: 1.0.0
+degraded: false
+gate:
+  result: PASS
+  send_back_to: ""
+  checks:
+    - id: decision-exists
+      kind: file_exists
+      status: pass
+      severity: block
+      reason: ""
+      evidence:
+        paths: 1
+findings: []
+handoff:
+  - "Phase     explore"
+  - "Gate      PASS"

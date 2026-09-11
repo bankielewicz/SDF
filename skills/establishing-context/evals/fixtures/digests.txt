@@ -1,0 +1,50 @@
+How the `upstream_sha256` values in evals/cases.jsonl were produced, and what the
+two files in this directory are.
+
+Cases `CON-05-sendback-infeasible` and `CON-06-sendback-contradiction` carry an
+`expect.args.upstream_sha256` mapping from `.devforgeai/requirements.yaml` to a
+SHA-256 hex digest. The `send_back` grader reads that path out of the workspace
+the run left behind and compares the digest, which is how it detects an edit to
+`requirements.yaml` without a baseline copy from the runner. Every other case
+carries its prior state inline in `setup.files` and needs no digest.
+
+Recipe:
+
+  1. Take the string at `setup.files[".devforgeai/requirements.yaml"]` of the
+     case line, which is what the runner writes into the temp workspace. Line
+     endings are LF; the JSON string holds `\n` escapes and no `\r`.
+  2. Encode UTF-8.
+  3. hashlib.sha256(...).hexdigest(), lowercase.
+
+`graders.py` implements the read side as `open(path, "rb").read()` so the
+comparison is over bytes rather than over text-mode reads, which on Windows
+would strip `\r` and change nothing here but would hide a CRLF rewrite.
+
+The two files in this directory hold exactly those bytes, one per case, so the
+digest recorded in the case line can be recomputed without re-parsing the spec:
+
+  requirements-IDEA-021.yaml   CON-05-sendback-infeasible
+    b6decd07df6e189e6df7818f3fa296e038d1aec7da0e2e09b46601214516af58
+
+  requirements-IDEA-022.yaml   CON-06-sendback-contradiction
+    6c3c5df9211eb6943987974bb4785e2ad56a60815d1ac8bef7e7abf519605e7d
+
+Reproduce:
+
+  python - <<'EOF'
+  import hashlib, json
+  for name in ["requirements-IDEA-021.yaml", "requirements-IDEA-022.yaml"]:
+      data = open("skills/establishing-context/evals/fixtures/" + name, "rb").read()
+      print(name, hashlib.sha256(data).hexdigest())
+  EOF
+
+Both digests moved once, when AUDIT-6 FWK-081 restored the MoSCoW priority enum
+(`must | should | could | wont`) in the requirements documents these two cases
+carry inline. The values above are the recomputed ones; `specs/04-constitute.md`
+`## Evals` restates them and is the specs fixer's to update.
+
+Each case also references two `FIXTURE:<name>` tokens added by AUDIT-5 EVL-013 —
+`gates-default.toml` and its own `report-IDEA-nnn-discover.yaml`, so the
+`gate require constitute` preamble finds a gates file and a PASS discover
+report. The requirements document stays inline, and these two files hold exactly
+the bytes the digests are over.

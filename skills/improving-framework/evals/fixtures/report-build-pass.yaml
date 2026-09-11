@@ -1,0 +1,70 @@
+schema: devforgeai/report/1
+id: STORY-014
+phase: build
+status: pass
+produced_by: devforgeai-cli
+consumes: [STORY-014, SPRINT-001]
+open_questions: []
+started_at: 2026-09-03T10:58:11Z
+finished_at: 2026-09-03T11:02:41Z
+cli_version: 1.0.0
+degraded: false
+gate:
+  result: PASS
+  send_back_to: ""
+  checks:
+    - id: build-docs
+      kind: doc_valid
+      status: pass
+      severity: block
+      reason: ""
+      evidence:
+        docs: 1
+        duration_ms: 118
+    - id: build-tests
+      kind: tests_pass
+      status: pass
+      severity: block
+      reason: ""
+      evidence:
+        exit_code: 0
+        duration_ms: 41203
+        passed: 214
+        failed: 0
+    - id: build-coverage
+      kind: coverage_min
+      status: pass
+      severity: block
+      reason: ""
+      evidence:
+        duration_ms: 9140
+    - id: build-lint
+      kind: lint_clean
+      status: pass
+      severity: block
+      reason: ""
+      evidence:
+        exit_code: 0
+        duration_ms: 3011
+coverage:
+  format: cobertura
+  source: coverage/cobertura.xml
+  overall: 87.4
+  layers:
+    - name: domain
+      covered: 512
+      total: 530
+      percent: 96.6
+      min: 95.0
+      status: pass
+    - name: application
+      covered: 301
+      total: 340
+      percent: 88.5
+      min: 85.0
+      status: pass
+  unassigned:
+    files: 3
+    percent: 61.0
+findings: []
+handoff: []

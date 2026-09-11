@@ -1,0 +1,46 @@
+schema: devforgeai/report/1
+id: v0.3.0
+phase: release
+produced_by: devforgeai-cli
+status: send_back
+consumes: [STORY-014, STORY-017]
+open_questions: []
+started_at: 2026-09-11T09:10:00Z
+finished_at: 2026-09-11T09:11:40Z
+cli_version: 1.0.0
+degraded: false
+gate:
+  result: SEND_BACK
+  send_back_to: verify
+  checks:
+    - id: release-deferrals
+      kind: verifier_pass
+      status: fail
+      severity: block
+      reason: "DFA-E317 1 of 2 deferrals accepted"
+      evidence:
+        verifier: deferral-auditor
+        passed: 1
+        total: 2
+verifiers:
+  deferrals:
+    subagent: deferral-auditor
+    ingested_at: 2026-09-11T09:11:02Z
+    passed: 1
+    total: 2
+    unit: deferrals
+    findings:
+      - id: FIND-009
+        severity: block
+        story: STORY-017
+        kind: blocks_deployment
+        summary: Refund webhook signature check deferred with no replacement control
+        reason: Deferred to STORY-031
+        evidence: .devforgeai/reports/STORY-017-qa.yaml:41
+findings:
+  - id: FIND-009
+    severity: block
+    story: STORY-017
+    summary: Refund webhook signature check deferred with no replacement control
+    evidence: .devforgeai/reports/STORY-017-qa.yaml:41
+handoff: []

@@ -1,0 +1,18 @@
+schema: devforgeai/sprint/1
+id: SPRINT-004
+phase: plan
+status: active
+produced_by: planning-work
+consumes: [EPIC-004]
+open_questions: []
+epic: EPIC-004
+capacity:
+  points_max: 20
+  points_planned: 3
+  source: default
+stories:
+  - id: STORY-022
+    status: built
+    order: 1
+    points: 3
+deferred: []

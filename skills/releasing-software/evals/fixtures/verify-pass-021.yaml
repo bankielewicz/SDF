@@ -1,0 +1,32 @@
+schema: devforgeai/report/1
+id: STORY-021
+phase: verify
+produced_by: devforgeai-cli
+status: pass
+consumes: [STORY-021, SPRINT-001]
+open_questions: []
+started_at: 2026-09-11T08:30:00Z
+finished_at: 2026-09-11T08:31:12Z
+cli_version: 1.0.0
+degraded: false
+gate:
+  result: PASS
+  send_back_to: ""
+  checks:
+    - id: verify-docs
+      kind: doc_valid
+      status: pass
+      severity: block
+      reason: ""
+      evidence:
+        documents: 1
+    - id: verify-blockers
+      kind: length_between
+      status: pass
+      severity: block
+      reason: ""
+      evidence:
+        field: blockers
+        value: 0
+findings: []
+handoff: []

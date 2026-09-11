@@ -1,0 +1,20 @@
+module domain.order
+
+type Order:
+    id: text
+    total: number
+    state: text
+
+function submit_order(id, total):
+    if total <= 0:
+        return reject_order(id)
+    return accept_order(id, total)
+
+function accept_order(id, total):
+    return Order(id: id, total: total, state: "accepted")
+
+function reject_order(id):
+    return Order(id: id, total: 0, state: "rejected")
+
+function read_state(order):
+    return order.state

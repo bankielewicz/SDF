@@ -1,0 +1,17 @@
+name: deploy @@VERSION@@
+on:
+  push:
+    tags:
+      - "v*.*.*"
+jobs:
+  deploy:
+    needs: devforgeai-release-gate
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: deploy
+        env:
+          APP_IMAGE: "@@IMAGE@@:@@VERSION@@"
+          APP_DEPLOY_TOKEN: "${{ secrets.APP_DEPLOY_TOKEN }}"
+        run: ./@@DEPLOY@@/vps/deploy.sh

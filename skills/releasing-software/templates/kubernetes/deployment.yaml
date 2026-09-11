@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "@@APP@@"
+  labels:
+    app: "@@APP@@"
+    version: "@@VERSION@@"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: "@@APP@@"
+  template:
+    metadata:
+      labels:
+        app: "@@APP@@"
+        version: "@@VERSION@@"
+    spec:
+      containers:
+        - name: "@@APP@@"
+          image: "@@IMAGE@@:@@VERSION@@"
+          ports:
+            - containerPort: @@PORT@@
+          env:
+            - name: APP_PORT
+              value: "@@PORT@@"
+          envFrom:
+            - secretRef:
+                name: "@@APP@@-secrets"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: @@PORT@@
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: @@PORT@@
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

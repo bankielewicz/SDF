@@ -1,0 +1,40 @@
+schema: devforgeai/build-note/1
+id: STORY-014
+run: full
+worktree: ../wt/STORY-014
+branch: story/STORY-014
+base_commit: 9f2c1ab00000000000000000000000000000000a
+head_commit: 2222222222222222222222222222222222222222
+layer: application
+cycles:
+  - ac: AC-001
+    test_paths:
+      - tests/application/checkout/place_order_spec.ext
+    red_commit: 0101010101010101010101010101010101010101
+    implementer: backend-implementer
+    green_commit: 1111111111111111111111111111111111111111
+    source_paths:
+      - src/application/checkout/place_order.ext
+  - ac: AC-002
+    test_paths:
+      - tests/application/checkout/place_order_spec.ext
+    red_commit: 0202020202020202020202020202020202020202
+    implementer: backend-implementer
+    green_commit: 2222222222222222222222222222222222222222
+    source_paths:
+      - src/application/checkout/place_order.ext
+  - ac: AC-003
+    test_paths:
+      - tests/application/checkout/place_order_spec.ext
+    red_commit: 0303030303030303030303030303030303030303
+    implementer: backend-implementer
+    green_commit: ""
+    source_paths: []
+refactors: []
+integration:
+  ran: false
+  reason: not-applicable
+  test_paths: []
+  commit: ""
+remedy: []
+resumed_at: ""

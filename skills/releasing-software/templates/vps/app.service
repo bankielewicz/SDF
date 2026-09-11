@@ -1,0 +1,14 @@
+[Unit]
+Description=@@APP@@
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/@@APP@@/current
+EnvironmentFile=/srv/@@APP@@/env
+ExecStart=/srv/@@APP@@/current/bin/@@APP@@
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

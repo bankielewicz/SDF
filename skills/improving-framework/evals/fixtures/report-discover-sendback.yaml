@@ -1,0 +1,42 @@
+schema: devforgeai/report/1
+id: IDEA-001
+phase: discover
+status: send_back
+produced_by: devforgeai-cli
+consumes: [IDEA-001, REQ-004, FLOW-002]
+open_questions: []
+started_at: 2026-08-21T09:00:00Z
+finished_at: 2026-08-21T10:12:44Z
+cli_version: 1.0.0
+degraded: false
+gate:
+  result: SEND_BACK
+  send_back_to: explore
+  checks:
+    - id: discover-docs
+      kind: doc_valid
+      status: pass
+      severity: block
+      reason: ""
+      evidence:
+        docs: 1
+        duration_ms: 96
+    - id: discover-ids
+      kind: ids_resolve
+      status: fail
+      severity: block
+      reason: DFA-E240 FLOW-002 resolves to no flow in explore/brief.md
+      evidence:
+        unresolved: 1
+    - id: discover-questions
+      kind: length_between
+      status: fail
+      severity: block
+      reason: DFA-E241 open_questions holds 3 entries against a maximum of 0
+      evidence:
+        count: 3
+findings:
+  - id: FIND-001
+    severity: block
+    summary: FLOW-002 is cited by REQ-004 and named by no flow in the brief.
+handoff: []

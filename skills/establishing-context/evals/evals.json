@@ -1,0 +1,94 @@
+{
+  "skill_name": "establishing-context",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/constitute IDEA-004 in a greenfield project whose requirements.yaml carries id IDEA-004, one epic, and requirements REQ-001 through REQ-006, and whose config.toml names a primary language and a test tool.",
+      "expected_output": "Six context files at .devforgeai/context/ and at least one ADR, followed by the PASS handoff block.",
+      "files": [],
+      "expectations": [
+        "Each of the six files exists at .devforgeai/context/<stem>.md",
+        "Each file's H2 lines equal the fixed list for its stem, in order",
+        "tech-stack.md holds a language.primary row whose Source column is config.toml",
+        "Every CON-nnn in the constraint index appears in an ADR's Constraints introduced table or carries a REQ-nnn source",
+        "The final block begins with 'Phase     2 · Constitute'"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "/constitute IDEA-012 in a brownfield project where init --analyze left six drafts with status: draft and three open_questions entries.",
+      "expected_output": "The six files completed and carrying status: accepted after the user answers, plus ADRs recording the as-is decisions.",
+      "files": [],
+      "expectations": [
+        "No file retains status: draft",
+        "open_questions is [] in every one of the six files",
+        "At least one ADR carries consumes: [] and names an evidence path in its Context section",
+        "source-tree.md Layers rows carry Source values of init --analyze or source-tree-mapper",
+        "The final block begins with 'Phase     2 · Constitute'"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "/constitute IDEA-003 where the explore brief lists two unnumbered lines under ## Non-goals and the single epic lists one out_of_scope entry.",
+      "expected_output": "Three CON blocks with kind: non-goal, two sourced to the brief heading and one to the epic id.",
+      "files": [],
+      "expectations": [
+        "architecture-constraints.md holds three CON blocks with kind: non-goal",
+        "Two non-goal CON source fields read 'explore/brief.md ## Non-goals'",
+        "One non-goal CON source field is the EPIC-nnn id that declared out_of_scope",
+        "No non-goal CON cites an IDEA-nnn or FLOW-nnn id",
+        "All three appear as rows in the Constraint index"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/constitute IDEA-021 where REQ-014 asks for a 50ms p99 that no architecture over the accepted data store reaches.",
+      "expected_output": "A SEND BACK to Discover citing REQ-014.",
+      "files": [],
+      "expectations": [
+        "The gate line reads 'SEND BACK to Discover'",
+        "A Found line names REQ-014",
+        "requirements.yaml is byte-identical to its input",
+        "The Next line reads '/discover IDEA-021 --remedy REQ-014'",
+        "The handoff block is at most twelve lines"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/constitute IDEA-022 where REQ-019 pins single-region storage and REQ-031 requires offline multi-region writes.",
+      "expected_output": "A SEND BACK to Discover citing both REQ ids.",
+      "files": [],
+      "expectations": [
+        "The gate line reads 'SEND BACK to Discover'",
+        "Found lines name REQ-019 and REQ-031",
+        "The Next line names IDEA-022 and lists both REQ ids comma-separated",
+        "No ADR carries status: accepted",
+        "The handoff block is at most twelve lines"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "/constitute IDEA-004 --remedy CON-003 after Plan reported that STORY-041 cannot satisfy CON-003.",
+      "expected_output": "A new ADR superseding the introducing ADR, CON-003 retired, and a replacement CON allocated.",
+      "files": [],
+      "expectations": [
+        "The ADR that introduced CON-003 carries status: superseded",
+        "A new ADR's Supersedes table names that ADR and retires CON-003",
+        "The CON-003 row in the Constraint index reads status retired",
+        "A replacement CON row exists with status active",
+        "Every CON row other than CON-003 is unchanged"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "/constitute IDEA-009 where the brownfield draft tech-stack.md and draft dependencies.md name two different values for language.primary.version.",
+      "expected_output": "One value across both files, and the discarded value recorded in an ADR.",
+      "files": [],
+      "expectations": [
+        "language.primary.version holds one value across the six files",
+        "An ADR records the choice between the two values",
+        "context audit check CA-5 is satisfiable against the written files"
+      ]
+    }
+  ]
+}

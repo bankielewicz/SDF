@@ -1,0 +1,55 @@
+schema: devforgeai/requirements/1
+id: IDEA-004
+phase: discover
+status: accepted
+produced_by: discovering-requirements
+consumes: [IDEA-004]
+open_questions: []
+revision: 1
+revision_log: []
+accepted_by: user
+accepted_at: 2026-09-01T09:00:00Z
+personas:
+  - id: PERSONA-001
+    name: Settlement clerk
+    description: Loads the nightly settlement file and clears exceptions.
+    goal: Close every settlement night with no unmatched line.
+epics:
+  - id: EPIC-002
+    title: Exception clearing
+    scope: Everything a clerk does with an unmatched settlement line.
+    out_of_scope:
+      - Chargeback disputes are handled outside this product.
+    success_metric: Unmatched lines fall below 5 per night.
+    requirements: [REQ-007, REQ-011, REQ-014]
+requirements:
+  - id: REQ-007
+    actor: PERSONA-001
+    statement: The clerk clears an unmatched line.
+    rationale: Unmatched lines block the nightly close.
+    acceptance_signal: The line leaves the exception list.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
+  - id: REQ-011
+    actor: PERSONA-001
+    statement: The clerk splits a settlement line.
+    rationale: One settlement line can cover two ledger entries.
+    acceptance_signal: Two lines appear where one was.
+    priority: should
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
+  - id: REQ-014
+    actor: PERSONA-001
+    statement: The clerk exports the exception list.
+    rationale: Finance reviews exceptions outside the product.
+    acceptance_signal: A file holding every open exception is produced.
+    priority: could
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []

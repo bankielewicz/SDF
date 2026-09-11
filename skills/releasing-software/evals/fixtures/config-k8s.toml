@@ -1,0 +1,30 @@
+schema = "devforgeai/config/1"
+generated_at = "2026-09-11T08:40:00Z"
+cli_version = "1.0.0"
+degraded = false
+
+[[stack]]
+id = "primary"
+markers = ["project.manifest"]
+source_roots = ["src"]
+timeout_secs = 900
+env = {}
+
+[release]
+platform = "kubernetes"
+ci = "github-actions"
+deploy_root = "deploy"
+docs_root = "docs"
+build_command = ""
+package_command = ""
+artifact_paths = []
+api_symbols_command = ""
+image_name = "registry.example.invalid/checkout"
+service_port = 8080
+
+[[verifier]]
+name = "deferral-auditor"
+phase = "release"
+report_field = "verifiers.deferrals"
+unit = "deferrals"
+required = true

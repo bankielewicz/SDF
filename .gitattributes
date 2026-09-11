@@ -1,0 +1,3 @@
+# No line-ending conversion anywhere: cli/REVISION line 2 is a digest over the
+# working-tree bytes of cli/, and trust verify recomputes it on every machine.
+* -text

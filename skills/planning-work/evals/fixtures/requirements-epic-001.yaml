@@ -1,0 +1,45 @@
+schema: devforgeai/requirements/1
+id: IDEA-004
+phase: discover
+status: accepted
+produced_by: discovering-requirements
+consumes: [IDEA-004]
+open_questions: []
+revision: 1
+revision_log: []
+accepted_by: user
+accepted_at: 2026-09-10T14:22:05Z
+personas:
+  - id: PERSONA-001
+    name: Shopper
+    description: A signed-in customer buying from the storefront.
+    goal: Complete a purchase without re-entering data.
+epics:
+  - id: EPIC-001
+    title: Checkout
+    scope: A signed-in shopper completes a purchase in one page.
+    out_of_scope:
+      - The system does not hold card numbers.
+    success_metric: Checkout completion reaches 80 percent.
+    requirements: [REQ-001, REQ-002]
+requirements:
+  - id: REQ-001
+    actor: PERSONA-001
+    statement: A signed-in shopper completes checkout on one page.
+    rationale: A multi-page checkout loses shoppers at each step.
+    acceptance_signal: The shopper reaches the confirmation state without a page change.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
+  - id: REQ-002
+    actor: PERSONA-001
+    statement: Checkout state survives a browser refresh.
+    rationale: Shoppers refresh when a payment step stalls.
+    acceptance_signal: The cart and the entered address are present after a refresh.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []

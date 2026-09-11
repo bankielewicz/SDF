@@ -1,0 +1,52 @@
+schema: devforgeai/qa-report/1
+id: STORY-nnn
+phase: verify
+status: pass
+produced_by: validating-quality
+consumes: []
+open_questions: []
+mode: light
+verified_on: YYYY-MM-DD
+build_report: .devforgeai/reports/STORY-nnn-build.yaml
+coverage:
+  source: .devforgeai/reports/STORY-nnn-build.yaml
+  overall: 0.0
+  layers:
+    - name: <domain | application | infrastructure | interface>
+      percent: 0.0
+      min: 0.0
+      status: <pass | fail>
+checks:
+  - name: <ac-compliance | code-review | anti-pattern-scan | constraint-validation | coverage-review | dead-code | deferral-validation | security-audit | quality-metrics | architecture-review>
+    verifier: <subagent name>
+    examined: 0
+    passed: 0
+    result: <pass | fail | skip>
+findings:
+  - id: FIND-nnn
+    category: <standards | anti-pattern | constraint | coverage | dead-code | deferral | ac-compliance | spec-gap | security | complexity | duplication>
+    severity: <blocker | high | medium | low>
+    file: <a Path value of the story ## Files table, or "">
+    line: 0
+    relates_to: <AC-nnn | CON-nnn | AP-nnn | ADR-nnn>
+    disposition: <fix | defer | accept>
+    summary: <one line, 1 to 120 characters>
+    evidence: <one line, 1 to 200 characters, naming the path, the line, and what was read there>
+    found_by: <subagent name>
+blockers: []
+deferrals:
+  - id: FIND-nnn
+    story: STORY-nnn
+    dod_item: <AC-nnn, CON-nnn, AP-nnn, or layer name, then its one-line text>
+    target: <STORY-nnn | ADR-nnn>
+    reason: <dependency_missing | scope_boundary | decision_pending | external_blocker | tooling_absent>
+    opened_on: YYYY-MM-DD
+    con_or_ap: <CON-nnn | AP-nnn | "">
+summary:
+  checks: 0
+  findings: 0
+  blockers: 0
+  high: 0
+  medium: 0
+  low: 0
+  deferrals: 0

@@ -1,0 +1,51 @@
+schema: devforgeai/report/1
+id: STORY-014
+phase: verify
+status: send_back
+produced_by: devforgeai-cli
+consumes: [STORY-014, AC-007]
+open_questions: []
+started_at: 2026-09-03T11:05:40Z
+finished_at: 2026-09-03T11:09:12Z
+cli_version: 1.0.0
+degraded: false
+gate:
+  result: SEND_BACK
+  send_back_to: build
+  checks:
+    - id: verify-docs
+      kind: doc_valid
+      status: pass
+      severity: block
+      reason: ""
+      evidence:
+        docs: 1
+        duration_ms: 101
+    - id: verify-acs
+      kind: verifier_pass
+      status: fail
+      severity: block
+      reason: DFA-E315 ac-compliance-verifier 6/7 below min_ratio 1.0 on the third consecutive run
+      evidence:
+        passed: 6
+        total: 7
+        runs: 3
+        first_at: 2026-09-03T10:45:56Z
+        last_at: 2026-09-03T11:05:40Z
+verifiers:
+  ac_compliance:
+    subagent: ac-compliance-verifier
+    ingested_at: 2026-09-03T11:08:51Z
+    passed: 6
+    total: 7
+    unit: ACs
+    findings:
+      - id: FIND-003
+        severity: block
+        summary: AC-007 asks for the retry budget at the boundary and the boundary applies none.
+        evidence: src/interface/checkout.ext:41 calls the store with no budget argument.
+findings:
+  - id: FIND-003
+    severity: block
+    summary: AC-007 asks for the retry budget at the boundary and the boundary applies none.
+handoff: []

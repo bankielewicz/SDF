@@ -1,0 +1,15 @@
+services:
+  app:
+    image: "@@IMAGE@@:@@VERSION@@"
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT}:@@PORT@@"
+    environment:
+      APP_PORT: "@@PORT@@"
+      APP_DATABASE_URL: "${APP_DATABASE_URL}"
+      APP_SIGNING_KEY: "${APP_SIGNING_KEY}"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:@@PORT@@/healthz"]
+      interval: 20s
+      timeout: 5s
+      retries: 3

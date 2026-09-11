@@ -1,0 +1,65 @@
+schema: devforgeai/build-note/1
+id: STORY-014
+run: full
+worktree: ../wt/STORY-014
+branch: story/STORY-014
+base_commit: 9f2c1ab00000000000000000000000000000000a
+head_commit: 41ee07d00000000000000000000000000000000b
+layer: application
+cycles:
+  - ac: AC-001
+    test_paths:
+      - tests/application/checkout/place_order_spec.ext
+    red_commit: 1111111111111111111111111111111111111111
+    implementer: backend-implementer
+    green_commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    source_paths:
+      - src/application/checkout/place_order.ext
+  - ac: AC-002
+    test_paths:
+      - tests/application/checkout/place_order_spec.ext
+    red_commit: 2222222222222222222222222222222222222222
+    implementer: backend-implementer
+    green_commit: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    source_paths:
+      - src/application/checkout/place_order.ext
+  - ac: AC-003
+    test_paths:
+      - tests/application/checkout/place_order_spec.ext
+    red_commit: 3333333333333333333333333333333333333333
+    implementer: backend-implementer
+    green_commit: cccccccccccccccccccccccccccccccccccccccc
+    source_paths:
+      - src/application/checkout/order_total.ext
+  - ac: AC-004
+    test_paths:
+      - tests/application/checkout/place_order_spec.ext
+    red_commit: 4444444444444444444444444444444444444444
+    implementer: backend-implementer
+    green_commit: dddddddddddddddddddddddddddddddddddddddd
+    source_paths:
+      - src/application/checkout/place_order.ext
+  - ac: AC-005
+    test_paths:
+      - tests/application/checkout/place_order_spec.ext
+    red_commit: 5555555555555555555555555555555555555555
+    implementer: backend-implementer
+    green_commit: eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    source_paths:
+      - src/application/checkout/place_order.ext
+  - ac: AC-006
+    test_paths:
+      - tests/application/checkout/place_order_spec.ext
+    red_commit: 6666666666666666666666666666666666666666
+    implementer: backend-implementer
+    green_commit: ffffffffffffffffffffffffffffffffffffffff
+    source_paths:
+      - src/application/checkout/place_order.ext
+refactors: []
+integration:
+  ran: false
+  reason: not-applicable
+  test_paths: []
+  commit: ""
+remedy: []
+resumed_at: ""

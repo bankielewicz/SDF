@@ -1,0 +1,35 @@
+{
+  "schema": "devforgeai/explore-seed-data/1",
+  "id": "IDEA-001",
+  "phase": "explore",
+  "status": "recorded",
+  "produced_by": "exploring-ideas",
+  "consumes": [],
+  "open_questions": [],
+  "entities": [
+    {
+      "name": "payment",
+      "fields": ["id", "payer", "amount", "received_on", "status"],
+      "rows": [
+        { "id": "PAY-2201", "payer": "M Okonjo", "amount": 120.00, "received_on": "2026-09-01", "status": "unmatched" },
+        { "id": "PAY-2202", "payer": "R Dalgleish", "amount": 480.00, "received_on": "2026-09-01", "status": "unmatched" },
+        { "id": "PAY-2203", "payer": "Marsh Dental Plan", "amount": 480.00, "received_on": "2026-09-02", "status": "unmatched" },
+        { "id": "PAY-2204", "payer": "T Iqbal", "amount": 65.50, "received_on": "2026-09-03", "status": "matched" },
+        { "id": "PAY-2205", "payer": "S Whitcombe", "amount": 200.00, "received_on": "2026-09-04", "status": "partly matched" },
+        { "id": "PAY-2206", "payer": "A Nurse", "amount": 95.00, "received_on": "2026-09-04", "status": "refunded" }
+      ]
+    },
+    {
+      "name": "invoice",
+      "fields": ["id", "customer", "amount", "due_on", "status"],
+      "rows": [
+        { "id": "INV-1001", "customer": "Marsh Dental", "amount": 480.00, "due_on": "2026-09-30", "status": "sent" },
+        { "id": "INV-1002", "customer": "M Okonjo", "amount": 120.00, "due_on": "2026-09-15", "status": "sent" },
+        { "id": "INV-1003", "customer": "R Dalgleish", "amount": 480.00, "due_on": "2026-09-15", "status": "sent" },
+        { "id": "INV-1004", "customer": "T Iqbal", "amount": 65.50, "due_on": "2026-09-10", "status": "paid" },
+        { "id": "INV-1005", "customer": "S Whitcombe", "amount": 340.00, "due_on": "2026-09-20", "status": "part paid" },
+        { "id": "INV-1006", "customer": "A Nurse", "amount": 95.00, "due_on": "2026-09-22", "status": "refunded" }
+      ]
+    }
+  ]
+}

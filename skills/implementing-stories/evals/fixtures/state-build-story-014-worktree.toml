@@ -1,0 +1,27 @@
+schema = "devforgeai/state/1"
+updated_at = "2026-09-11T09:14:02Z"
+
+[current]
+phase = "build"
+id = "STORY-014"
+
+[active]
+explore = "IDEA-004"
+discover = "IDEA-004"
+constitute = "IDEA-004"
+plan = "SPRINT-001"
+build = "STORY-014"
+verify = ""
+release = ""
+
+[last_gate]
+phase = "plan"
+id = "SPRINT-001"
+result = "PASS"
+
+[stop_hook]
+block_count = 0
+
+# STORY-014 is the story in flight: its worktree sits at
+# <[build].worktree_root>/STORY-014, so a second story declaring one of
+# its files has to wait (AUDIT-5 EVL-050).

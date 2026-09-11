@@ -1,0 +1,27 @@
+[build]
+worktree_root = "../wt"
+branch_prefix = "story/"
+base_ref = "HEAD"
+complexity_max = 10
+duplication_max_percent = 5.0
+
+[[verifier]]
+name = "ac-test-writer"
+phase = "build"
+report_field = "verifiers.ac_testable"
+unit = "AC"
+required = true
+
+[[verifier]]
+name = "story-ac-verifier"
+phase = "build"
+report_field = "verifiers.story_ac"
+unit = "ACs"
+required = true
+
+[[verifier]]
+name = "context-validator"
+phase = "build"
+report_field = "verifiers.context"
+unit = "files"
+required = true

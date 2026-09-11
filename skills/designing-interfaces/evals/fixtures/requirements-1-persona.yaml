@@ -1,0 +1,28 @@
+schema: devforgeai/requirements/1
+id: IDEA-004
+phase: discover
+status: accepted
+produced_by: discovering-requirements
+consumes: []
+open_questions: []
+
+personas:
+  - id: PERSONA-001
+    name: Practice manager
+    description: Runs billing for a three-chair dental practice, one afternoon a week.
+    goal: Close the week with every invoice either paid or chased, without opening the bank statement twice.
+
+epics:
+  - id: EPIC-002
+    title: Payment reconciliation
+    persona: PERSONA-001
+    requirements: [REQ-007]
+
+requirements:
+  - id: REQ-007
+    epic: EPIC-002
+    persona: PERSONA-001
+    source: FLOW-001
+    statement: The practice manager reviews every unmatched payment against open invoices before closing the week.
+    acceptance_signal: The reconciliation review screen lists unmatched payments with the open invoices each could settle.
+    traces_to: []

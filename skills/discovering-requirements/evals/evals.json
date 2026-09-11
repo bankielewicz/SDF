@@ -1,0 +1,79 @@
+{
+  "skill_name": "discovering-requirements",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/discover IDEA-004",
+      "expected_output": ".devforgeai/requirements.yaml holding 2 personas, 2 epics, 5 requirements, accepted_by user",
+      "files": [],
+      "expectations": [
+        "requirements.yaml has top-level keys schema, id, phase, status, produced_by, consumes, open_questions, revision, revision_log, accepted_by, accepted_at, personas, epics, requirements",
+        "every requirements[].actor matches a personas[].id",
+        "every requirements[].source is a FLOW id listed in consumes",
+        "every requirements[].id appears in exactly one epics[].requirements list",
+        "revision is 1 and revision_log is empty"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "/discover \"a tool that reconciles card settlements against the ledger each night\"",
+      "expected_output": ".devforgeai/requirements.yaml with consumes [] and every source set to user",
+      "files": [],
+      "expectations": [
+        "the document id matches ^IDEA-\\d{3}$",
+        "consumes is the empty list",
+        "every requirements[].source equals user",
+        "every epics[].out_of_scope holds at least one entry",
+        "no .devforgeai/explore file is written"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "/discover IDEA-011",
+      "expected_output": "SEND BACK to Explore citing the contradicting FLOW ids",
+      "files": [],
+      "expectations": [
+        "no .devforgeai/requirements.yaml is written",
+        "the handoff Gate line reads SEND BACK to Explore",
+        "the handoff Next line is /explore IDEA-011 --remedy with both FLOW ids",
+        "the Found lines name both FLOW ids of the contradicting pair"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/discover IDEA-012",
+      "expected_output": "SEND BACK to Explore citing the FLOW id that names no actor",
+      "files": [],
+      "expectations": [
+        "no .devforgeai/requirements.yaml is written",
+        "the handoff Gate line reads SEND BACK to Explore",
+        "the Found line names the actorless FLOW id",
+        "the Verified line names flow-integrity-auditor"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/discover IDEA-004 --remedy REQ-007,REQ-011",
+      "expected_output": "revision 2, REQ-007 and REQ-011 rewritten, every other record byte-identical",
+      "files": [],
+      "expectations": [
+        "revision is 2 and revision_log holds one entry with from plan",
+        "REQ-007 and REQ-011 carry text different from the prior revision",
+        "every requirement other than REQ-007 and REQ-011 is byte-identical to the prior revision",
+        "no REQ id present before the remedy is absent after it"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "/discover IDEA-004 --remedy UI-005",
+      "expected_output": "one new REQ allocated for UI-005 with traces_to [UI-005]",
+      "files": [],
+      "expectations": [
+        "revision is 2 and revision_log holds one entry with from design",
+        "one requirement carries traces_to equal to [UI-005]",
+        "that requirement has source user and a non-empty statement",
+        "that requirement id appears in the requirements list of exactly one epic"
+      ]
+    }
+  ]
+}

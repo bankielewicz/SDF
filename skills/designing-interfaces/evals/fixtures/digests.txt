@@ -1,0 +1,29 @@
+How the baseline_section_sha256 digests in evals/cases.jsonl case dz-07 were produced.
+
+Subject: skills/designing-interfaces/evals/fixtures/ui-003-approved.md, the file the
+runner copies to .devforgeai/ui-specs/UI-003.md before the case runs.
+
+Recipe, implemented once as _section_digest in evals/graders.py and applied to the
+sections of that fixture to produce the values below:
+
+  1. Drop the YAML frontmatter: the body is everything below the closing '---'.
+  2. Split the body on lines starting with '## '. A section's text is the lines
+     below its heading line and above the next '## ' heading.
+  3. Strip trailing whitespace from every line.
+  4. Drop leading and trailing blank lines.
+  5. Join the remaining lines with a single '\n'. No trailing newline.
+  6. Encode UTF-8 and take the SHA-256 hex digest, lowercase.
+
+The grader recomputes the digest of each section of the file the run left behind and
+compares it to the recorded value, so the recipe and the recorded values come from one
+function and cannot drift apart.
+
+Purpose        ec9b0fe71e4bbaa25177e9877540fef5a9d0c55025c517e85f695c7c6d45c9e9
+Requirements   f52362cc2b8f24d9573ca6b7974761c75ce2b4e91bb4048061d6c02648d787b4
+Anatomy        7abcd58b364ae3c0756e2bf01ee9c30cfabe45858b47eca7e6452fb656c49523
+States         bbfae8562ab471981d2e5fe318edc9758b041ce6322e816840921629ef092314
+Breakpoints    3588a71de3eba3d5ae5713f73e2b2afa254ef7a6979a126f5e302326df00f00e
+Interaction    c95e2570eba949c1b9371a3ea768da6e962dd6405e2fff3f5a0aa022326163d0
+Accessibility  becb5c7c6385288fa83b44ee1b33ec34a459513a71a5d473832913aa09c68198
+Tokens used    db7bc14ef21f0aff36404c5026c64afef33c8fe00b7d5a98f40e9ec4481f1013
+Out of scope   c626bbd74d51090742f7fde8a59044f93c56639554d729beb9bef68b04722071

@@ -1,0 +1,46 @@
+schema: devforgeai/requirements/1
+id: IDEA-004
+phase: discover
+status: accepted
+produced_by: discovering-requirements
+consumes: []
+open_questions: []
+
+personas:
+  - id: PERSONA-001
+    name: Practice manager
+    description: Runs billing for a three-chair dental practice, one afternoon a week.
+    goal: Close the week with every invoice either paid or chased, without opening the bank statement twice.
+  - id: PERSONA-002
+    name: Bookkeeper
+    description: Contract bookkeeper covering eleven small practices, working from exports.
+    goal: Reconcile a month of payments against invoices in one sitting and leave a trail anyone can follow.
+
+epics:
+  - id: EPIC-002
+    title: Payment reconciliation
+    persona: PERSONA-001
+    requirements: [REQ-007, REQ-011, REQ-012]
+
+requirements:
+  - id: REQ-007
+    epic: EPIC-002
+    persona: PERSONA-001
+    source: FLOW-001
+    statement: The practice manager reviews every unmatched payment against open invoices before closing the week.
+    acceptance_signal: The reconciliation review screen lists unmatched payments with the open invoices each could settle.
+    traces_to: [UI-003]
+  - id: REQ-011
+    epic: EPIC-002
+    persona: PERSONA-002
+    source: FLOW-002
+    statement: The bookkeeper confirms a match and records who confirmed it and when.
+    acceptance_signal: The match confirmation panel records the confirming user and the timestamp on every accepted match.
+    traces_to: [UI-004]
+  - id: REQ-012
+    epic: EPIC-002
+    persona: PERSONA-001
+    source: FLOW-003
+    statement: The practice manager sees the running total of unreconciled payments for the current week.
+    acceptance_signal: The reconciliation review screen shows the unreconciled total for the selected week.
+    traces_to: [UI-003]

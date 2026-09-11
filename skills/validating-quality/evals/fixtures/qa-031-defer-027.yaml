@@ -1,0 +1,82 @@
+schema: devforgeai/qa-report/1
+id: STORY-031
+phase: verify
+status: pass
+produced_by: validating-quality
+consumes: [STORY-031, AC-051, CON-005]
+open_questions: []
+mode: light
+verified_on: 2026-09-10
+build_report: .devforgeai/reports/STORY-031-build.yaml
+coverage:
+  source: .devforgeai/reports/STORY-031-build.yaml
+  overall: 84.2
+  layers:
+    - name: interface
+      percent: 74.0
+      min: 70.0
+      status: pass
+checks:
+  - name: ac-compliance
+    verifier: ac-compliance-verifier
+    examined: 1
+    passed: 1
+    result: pass
+  - name: code-review
+    verifier: standards-reviewer
+    examined: 1
+    passed: 1
+    result: pass
+  - name: anti-pattern-scan
+    verifier: anti-pattern-scanner
+    examined: 2
+    passed: 2
+    result: pass
+  - name: constraint-validation
+    verifier: constraint-auditor
+    examined: 1
+    passed: 1
+    result: pass
+  - name: coverage-review
+    verifier: coverage-gap-auditor
+    examined: 4
+    passed: 4
+    result: pass
+  - name: dead-code
+    verifier: dead-code-detector
+    examined: 2
+    passed: 2
+    result: pass
+  - name: deferral-validation
+    verifier: deferral-validator
+    examined: 0
+    passed: 0
+    result: skip
+findings:
+  - id: FIND-033
+    category: constraint
+    severity: medium
+    file: src/api/orders.ext
+    line: 24
+    relates_to: CON-005
+    disposition: defer
+    summary: The boundary reads the attempt count the use case keeps.
+    evidence: src/api/orders.ext:24 reads the attempt count from the use case, which CON-005 places at the boundary.
+    found_by: constraint-auditor
+blockers: []
+deferrals:
+  - id: FIND-033
+    story: STORY-031
+    dod_item: CON-005 the retry budget is enforced at the boundary
+    target: STORY-027
+    reason: dependency_missing
+    opened_on: 2026-09-10
+    con_or_ap: CON-005
+summary:
+  checks: 7
+  findings: 1
+  blockers: 0
+  high: 0
+  medium: 1
+  low: 0
+  deferrals: 1

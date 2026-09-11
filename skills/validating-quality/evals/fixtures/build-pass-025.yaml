@@ -1,0 +1,62 @@
+schema: devforgeai/build-report/1
+id: STORY-025
+phase: build
+status: pass
+produced_by: devforgeai-cli
+consumes: [STORY-025, SPRINT-003]
+open_questions: []
+started_at: 2026-09-11T08:40:00Z
+finished_at: 2026-09-11T08:55:00Z
+cli_version: 1.0.0
+degraded: false
+gate:
+  result: PASS
+  send_back_to: ""
+  checks:
+    - id: build-docs
+      kind: doc_valid
+      status: pass
+      severity: block
+      reason: ""
+    - id: build-tests
+      kind: tests_pass
+      status: pass
+      severity: block
+      reason: ""
+    - id: build-coverage
+      kind: coverage_min
+      status: pass
+      severity: block
+      reason: ""
+coverage:
+  format: devforgeai-json
+  source: out/coverage.json
+  overall: 85.5
+  layers:
+    - name: domain
+      covered: 512
+      total: 530
+      percent: 96.6
+      min: 95.0
+      status: pass
+    - name: application
+      covered: 302
+      total: 342
+      percent: 88.3
+      min: 85.0
+      status: pass
+    - name: infrastructure
+      covered: 210
+      total: 252
+      percent: 83.3
+      min: 80.0
+      status: pass
+    - name: interface
+      covered: 148
+      total: 200
+      percent: 74.0
+      min: 70.0
+      status: pass
+  unassigned:
+    files: 0
+    percent: 0.0

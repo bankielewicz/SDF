@@ -1,0 +1,59 @@
+schema = "devforgeai/config/1"
+generated_at = "2026-09-10T14:02:11Z"
+cli_version = "1.0.0"
+degraded = false
+
+[[stack]]
+id = "node"
+markers = ["package.json"]
+package_manager = "npm"
+source_roots = ["src"]
+test_command = "npm test"
+coverage_command = "npm run coverage"
+coverage_format = "lcov"
+coverage_paths = ["coverage/lcov.info"]
+lint_command = "npm run lint"
+timeout_secs = 900
+env = {}
+
+[frontend]
+globs = [
+  "**/*.css", "**/*.scss", "**/*.sass", "**/*.less",
+  "**/*.vue", "**/*.svelte", "**/*.jsx", "**/*.tsx",
+  "**/*.html", "**/*.styles.ts", "**/*.styles.js"
+]
+tokens_path = ".devforgeai/brand/tokens.json"
+exclude = ["**/node_modules/**", "**/dist/**", "**/build/**", "**/vendor/**",
+           ".explore-prototype/**", ".devforgeai/explore/mockups/**"]
+
+[[layer]]
+name = "domain"
+globs = ["**/domain/**", "**/core/**", "**/entities/**", "**/model/**", "**/models/**"]
+coverage_min = 95.0
+
+[[layer]]
+name = "application"
+globs = ["**/application/**", "**/services/**", "**/usecases/**", "**/use_cases/**", "**/handlers/**"]
+coverage_min = 85.0
+
+[[layer]]
+name = "infrastructure"
+globs = ["**/infrastructure/**", "**/infra/**", "**/adapters/**", "**/repositories/**", "**/persistence/**", "**/db/**"]
+coverage_min = 80.0
+
+[[layer]]
+name = "interface"
+globs = ["**/api/**", "**/controllers/**", "**/routes/**", "**/cli/**", "**/ui/**", "**/components/**", "**/pages/**"]
+coverage_min = 70.0
+
+[coverage]
+overall_min = 80.0
+unassigned_policy = "report"
+exclude = ["**/tests/**", "**/test/**", "**/*_test.*", "**/*.test.*", "**/*.spec.*", "**/mocks/**"]
+
+[[verifier]]
+name = "requirement-coverage-auditor"
+phase = "design"
+report_field = "verifiers.requirement_coverage"
+unit = "screens"
+required = false

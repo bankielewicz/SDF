@@ -1,0 +1,52 @@
+schema: devforgeai/requirements/1
+id: IDEA-022
+phase: discover
+status: accepted
+produced_by: discovering-requirements
+consumes: [IDEA-022]
+open_questions: []
+revision: 1
+revision_log: []
+accepted_by: user
+accepted_at: 2026-09-10T14:22:05Z
+personas:
+  - id: PERSONA-001
+    name: Shopper
+    description: A signed-in customer buying from the storefront.
+    goal: Complete a purchase without re-entering data.
+epics:
+  - id: EPIC-001
+    title: Residency
+    scope: Order data stays in one region.
+    out_of_scope:
+      - The system does not support per-tenant regions.
+    success_metric: Rows outside the named region stay at 0.
+    requirements: [REQ-019]
+  - id: EPIC-002
+    title: Offline
+    scope: A shopper writes orders offline.
+    out_of_scope:
+      - The system does not sync media offline.
+    success_metric: Offline write durability reaches 100 percent.
+    requirements: [REQ-031]
+requirements:
+  - id: REQ-019
+    actor: PERSONA-001
+    statement: All order data is stored in exactly one region and is not replicated out of it.
+    rationale: A data residency rule binds the operator.
+    acceptance_signal: An audit of the store finds order rows in one region only.
+    priority: should
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
+  - id: REQ-031
+    actor: PERSONA-001
+    statement: A shopper writes an order offline and the write is durable before any network round trip.
+    rationale: Field staff work without connectivity.
+    acceptance_signal: An order written with the network disabled survives a device restart.
+    priority: should
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []

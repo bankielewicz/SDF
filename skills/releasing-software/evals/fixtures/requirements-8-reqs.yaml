@@ -1,0 +1,109 @@
+schema: devforgeai/requirements/1
+id: IDEA-003
+phase: discover
+status: accepted
+produced_by: discovering-requirements
+consumes: [IDEA-003]
+open_questions: []
+revision: 1
+revision_log: []
+accepted_by: user
+accepted_at: 2026-09-08T11:04:00Z
+personas:
+  - id: PERSONA-001
+    name: Buyer
+    description: A person buying one basket of goods from the storefront.
+    goal: To receive what they chose with the least handling.
+  - id: PERSONA-002
+    name: Finance clerk
+    description: A person reconciling payments against orders each day.
+    goal: To close the day with every order matched to a payment.
+epics:
+  - id: EPIC-001
+    title: Checkout and refunds
+    scope: A buyer pays without an account and a refund reaches the ledger.
+    out_of_scope:
+      - Subscription billing is not carried by this epic.
+    success_metric: Checkout completion rises by 8 percentage points.
+    requirements: [REQ-001, REQ-002, REQ-004, REQ-007, REQ-009, REQ-011, REQ-013, REQ-015]
+requirements:
+  - id: REQ-001
+    actor: PERSONA-001
+    statement: A buyer browses the catalogue without signing in.
+    rationale: Most first visits end before any account is created.
+    acceptance_signal: The catalogue page renders for a request carrying no session.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
+  - id: REQ-002
+    actor: PERSONA-001
+    statement: A buyer reads the orders their address placed.
+    rationale: Support handles one repeat request per day for order copies.
+    acceptance_signal: The history page lists one row per past order of that address.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
+  - id: REQ-004
+    actor: PERSONA-001
+    statement: A buyer removes a line from the basket before paying.
+    rationale: A basket that cannot be corrected is abandoned.
+    acceptance_signal: The basket total falls by the removed line's amount.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
+  - id: REQ-007
+    actor: PERSONA-001
+    statement: A buyer completes a purchase without an account.
+    rationale: Account creation is the largest drop in the funnel.
+    acceptance_signal: A checkout submitted with no session returns a confirmation number.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
+  - id: REQ-009
+    actor: PERSONA-002
+    statement: A refund raised by the payment provider reaches the ledger.
+    rationale: Manual refund entry is the second largest source of reconciliation error.
+    acceptance_signal: One ledger row carries the refund amount within a minute of the callback.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
+  - id: REQ-011
+    actor: PERSONA-001
+    statement: A completed purchase produces one order record.
+    rationale: A purchase with no record cannot be fulfilled or refunded.
+    acceptance_signal: The order store holds exactly one row per confirmation number.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
+  - id: REQ-013
+    actor: PERSONA-002
+    statement: A clerk exports the day's ledger rows.
+    rationale: The reconciliation runs outside this system and needs the rows.
+    acceptance_signal: The export holds every ledger row whose date is the requested day.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []
+  - id: REQ-015
+    actor: PERSONA-002
+    statement: A clerk sees which orders have no matching payment.
+    rationale: An unmatched order is the case reconciliation exists to find.
+    acceptance_signal: The unmatched view lists every order with no payment row.
+    priority: must
+    source: user
+    status: accepted
+    open_questions: []
+    traces_to: []

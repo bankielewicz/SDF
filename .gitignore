@@ -1,0 +1,14 @@
+# Rust build output (the release binary is digest-pinned via cli/DIGEST, not committed)
+cli/target/
+# Python caches
+__pycache__/
+*.pyc
+# Eval run outputs
+skills/*/evals/results.jsonl
+evals/**/results*.jsonl
+# Local scratch created during smoke tests
+proj/
+yamltest/
+# Claude Code local settings
+.claude/settings.local.json
+.devforgeai/

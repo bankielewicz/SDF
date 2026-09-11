@@ -1,0 +1,46 @@
+schema = "devforgeai/state/1"
+updated_at = "2026-09-11T09:00:00Z"
+
+[current]
+phase = "release"
+id = "v0.3.0"
+
+[active]
+explore = "IDEA-002"
+discover = "IDEA-002"
+constitute = "IDEA-002"
+plan = "SPRINT-003"
+build = "STORY-027"
+verify = "STORY-027"
+release = "v0.3.0"
+
+[explore]
+idea_id = "IDEA-002"
+started_at = "2026-09-01T09:00:00Z"
+timebox_days = 5
+remedy_started_at = ""
+remedy_timebox_days = 1
+remedy_flows = []
+
+[constitute]
+remedy_con = ""
+
+[last_gate]
+phase = "release"
+id = "v0.3.0"
+result = "SEND_BACK"
+at = "2026-09-11T08:55:00Z"
+report = ".devforgeai/reports/v0.3.0-release.yaml"
+send_back_to = "verify"
+failed_checks = []
+
+[last_handoff]
+rendered_at = "2026-09-11T08:55:01Z"
+phase = "release"
+id = "v0.3.0"
+lines = []
+
+[stop_hook]
+block_count = 0
+blocked_phase = ""
+blocked_id = ""

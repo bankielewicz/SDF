@@ -1,0 +1,19 @@
+module tests.order
+
+import domain.order
+
+case "AC-001 a positive total is accepted":
+    result = submit_order("o-1", 10)
+    assert result.state == "accepted"
+
+case "AC-002 a zero total is rejected":
+    result = submit_order("o-2", 0)
+    assert result.state == "rejected"
+
+case "AC-003 an accepted order reads back accepted":
+    result = read_state(submit_order("o-3", 5))
+    assert result == "accepted"
+
+case "AC-004 a rejected order reads back rejected":
+    result = read_state(submit_order("o-4", 0))
+    assert result == "rejected"

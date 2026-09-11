@@ -1,0 +1,116 @@
+{
+  "skill_name": "releasing-software",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/release v0.3.0 with three stories at built, each with a PASS verify report and no deferral, and [release].platform = \"kubernetes\"",
+      "expected_output": ".devforgeai/releases/v0.3.0.yaml at status: released and four Kubernetes manifests.",
+      "files": [],
+      "expectations": [
+        "The sixteen top-level keys appear in the Outputs order: schema, id, phase, status, produced_by, consumes, open_questions, previous_version, released_at, stories, artifacts, platform, deploy, docs, notes, signoff.",
+        "stories[] holds three entries ascending by id.",
+        "platform.target is 'kubernetes' and platform.source is 'config'.",
+        "deploy.manifests[] holds deployment.yaml, service.yaml, ingress.yaml, and kustomization.yaml.",
+        "signoff.gate is 'PASS'."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "/release v0.3.0 with [release].platform = \"\" and a docker-compose.yaml at the project root",
+      "expected_output": "The release file with platform.source: detected.",
+      "files": [],
+      "expectations": [
+        "platform.target is 'compose'.",
+        "platform.marker is 'docker-compose.yaml'.",
+        "deploy/compose/docker-compose.yaml and deploy/compose/env.example both exist.",
+        "Every ${NAME} reference in the compose file has a NAME= line in env.example."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "/release v0.3.0 with [release].platform = \"none\" on a library project",
+      "expected_output": "The release file with no manifest.",
+      "files": [],
+      "expectations": [
+        "deploy.manifests is [].",
+        "deploy.rollback is the empty string.",
+        "No file exists under deploy/.",
+        "docs/api/index.md, docs/guide/index.md, and docs/architecture/index.md all exist.",
+        "The run printed a PASS handoff."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/release v0.3.0 where one story's QA report defers FIND-009 with the reason 'Deferred to STORY-031' on an authentication control",
+      "expected_output": "A SEND BACK handoff to Verify.",
+      "files": [],
+      "expectations": [
+        "The handoff Gate line reads 'SEND BACK to Verify'.",
+        "A Found line names FIND-009 and STORY-017.",
+        "The handoff Next line is '/verify STORY-017 --remedy FIND-009'.",
+        "The handoff Then line is '/release v0.3.0 --resume'.",
+        "No story file moved to status: released."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/release v0.3.0 where STORY-021 is at built and reports/STORY-021-verify.yaml carries gate.result: FAIL",
+      "expected_output": "A SEND BACK handoff to Verify citing the story.",
+      "files": [],
+      "expectations": [
+        "The handoff Gate line names release-stories.",
+        "The handoff Next line cites STORY-021.",
+        "releases/v0.3.0.yaml carries signoff.gate: SEND_BACK.",
+        "stories[] still lists STORY-021 with verify_result: FAIL."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "/release v0.3.0 --resume after the deferral send-back, with FIND-009 now closed in the QA report",
+      "expected_output": "A PASS handoff with the manifests untouched.",
+      "files": [],
+      "expectations": [
+        "The handoff Gate line reads 'PASS'.",
+        "Every file under deploy/ has the byte content it had before the resume.",
+        "notes.deferred[] holds no entry with blocks_deployment: true.",
+        "The handoff Next line is '/reflect v0.3.0'."
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "/release v0.2.0 where .devforgeai/releases/v0.3.0.yaml already exists",
+      "expected_output": "The run stops before writing a release file.",
+      "files": [],
+      "expectations": [
+        "The run reports that the version is not greater than v0.3.0.",
+        ".devforgeai/releases/v0.2.0.yaml does not exist.",
+        "No file was written under deploy/ or docs/.",
+        "The run printed no PASS gate line."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "/release v0.3.0 with [release].api_symbols_command printing 12 symbols and docs/api/ written for one stack",
+      "expected_output": "The API pages covering every symbol.",
+      "files": [],
+      "expectations": [
+        "docs/api/index.md '## Symbols' holds 12 data rows.",
+        "The docs/api page for the stack holds 12 H3 headings whose text equals the symbol names.",
+        "docs.api_symbols and docs.api_documented are both 12.",
+        "docs.brand lists the two copied brand files."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "/release v0.3.0 over three stories: one whose consumes holds FIND-004, one whose consumes holds no REQ-nnn, one holding two REQ-nnn",
+      "expected_output": "The release notes with the three derived kinds.",
+      "files": [],
+      "expectations": [
+        "notes.entries holds three entries in stories[] order.",
+        "The kinds are fix, internal, and feature in the order the stories sort.",
+        "notes.requirements is the ascending de-duplicated union of the entries' requirement ids.",
+        "notes.summary is at most 72 characters."
+      ]
+    }
+  ]
+}

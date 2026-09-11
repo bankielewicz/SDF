@@ -1,0 +1,41 @@
+schema: devforgeai/release/1
+id: "@@VERSION@@"
+phase: release
+status: draft
+produced_by: releasing-software
+consumes: []
+open_questions: []
+previous_version: ""
+released_at: ""
+stories: []
+artifacts: []
+platform:
+  target: none
+  source: detected
+  marker: ""
+deploy:
+  root: "@@DEPLOY@@"
+  manifests: []
+  ci_workflow: ""
+  ci_check_name: ""
+  rollback: ""
+docs:
+  root: "@@DOCS@@"
+  index: ""
+  api: []
+  guide: ""
+  architecture: ""
+  brand: []
+  api_symbols: 0
+  api_documented: 0
+notes:
+  summary: ""
+  entries: []
+  requirements: []
+  deferred: []
+signoff:
+  gate: NOT_RUN
+  report: ""
+  checks_passed: 0
+  checks_total: 0
+  at: ""

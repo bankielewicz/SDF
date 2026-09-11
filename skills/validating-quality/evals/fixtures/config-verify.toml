@@ -1,0 +1,117 @@
+schema = "devforgeai/config/1"
+generated_at = "2026-09-10T09:00:00Z"
+cli_version = "1.0.0"
+degraded = false
+
+[[stack]]
+id = "primary"
+source_roots = ["src"]
+test_command = "harness test"
+coverage_command = "harness coverage"
+coverage_format = "devforgeai-json"
+coverage_paths = ["out/coverage.json"]
+lint_command = ""
+complexity_command = ""
+
+[[layer]]
+name = "domain"
+globs = ["src/domain/**"]
+coverage_min = 95.0
+
+[[layer]]
+name = "application"
+globs = ["src/application/**"]
+coverage_min = 85.0
+
+[[layer]]
+name = "infrastructure"
+globs = ["src/infrastructure/**"]
+coverage_min = 80.0
+
+[[layer]]
+name = "interface"
+globs = ["src/api/**"]
+coverage_min = 70.0
+
+[coverage]
+overall_min = 80.0
+unassigned_policy = "report"
+exclude = ["tests/**"]
+
+[verify]
+mode = "light"
+complexity_max = 10
+duplication_max_percent = 5.0
+duplication_min_lines = 20
+metrics_command = ""
+call_graph_command = ""
+
+[[verifier]]
+name = "ac-compliance-verifier"
+phase = "verify"
+report_field = "verifiers.ac_compliance"
+unit = "ACs"
+required = true
+
+[[verifier]]
+name = "standards-reviewer"
+phase = "verify"
+report_field = "verifiers.standards"
+unit = "files"
+required = true
+
+[[verifier]]
+name = "anti-pattern-scanner"
+phase = "verify"
+report_field = "verifiers.anti_patterns"
+unit = "anti-patterns"
+required = true
+
+[[verifier]]
+name = "constraint-auditor"
+phase = "verify"
+report_field = "verifiers.constraints"
+unit = "constraints"
+required = true
+
+[[verifier]]
+name = "coverage-gap-auditor"
+phase = "verify"
+report_field = "verifiers.coverage_gaps"
+unit = "layers"
+required = true
+
+[[verifier]]
+name = "dead-code-detector"
+phase = "verify"
+report_field = "verifiers.dead_code"
+unit = "symbols"
+required = true
+
+[[verifier]]
+name = "deferral-validator"
+phase = "verify"
+report_field = "verifiers.deferrals"
+unit = "deferrals"
+required = true
+
+[[verifier]]
+name = "security-auditor"
+phase = "verify"
+report_field = "verifiers.security"
+unit = "OWASP categories"
+required = true
+
+[[verifier]]
+name = "code-quality-auditor"
+phase = "verify"
+report_field = "verifiers.quality"
+unit = "files"
+required = true
+
+[[verifier]]
+name = "adr-conformance-reviewer"
+phase = "verify"
+report_field = "verifiers.adr_conformance"
+unit = "ADRs"
+required = true

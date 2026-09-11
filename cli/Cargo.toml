@@ -1,0 +1,46 @@
+[package]
+name = "devforgeai"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.97"
+description = "The enforcement core of the DevForgeAI framework"
+publish = false
+
+[[bin]]
+name = "devforgeai"
+path = "src/main.rs"
+
+[lib]
+name = "devforgeai"
+path = "src/lib.rs"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive", "env"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+toml_edit = "0.22"
+serde_json = { version = "1", features = ["preserve_order"] }
+serde_yaml_ng = "0.10"
+sha2 = "0.10"
+globset = "0.4"
+regex = "1"
+walkdir = "2"
+quick-xml = "0.36"
+time = { version = "0.3", features = ["formatting", "parsing", "macros"] }
+thiserror = "2"
+
+[dev-dependencies]
+# A dev-dependency on this crate turns `test-home` on for every test target
+# through feature unification, so `cargo test` with no flags runs against the
+# temporary-home and fixed-clock overrides and never reads the real
+# `~/.devforgeai`. Dev-dependencies are not built for `cargo build`, so the
+# release binary still carries neither override.
+devforgeai = { path = ".", features = ["test-home"] }
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"
+insta = "1"
+
+[features]
+default = []
+test-home = []

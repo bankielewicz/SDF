@@ -1,0 +1,80 @@
+{
+  "skill_name": "implementing-stories",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/build STORY-014",
+      "expected_output": "One worktree, one failing test per AC before its implementation, one commit per red and per green, a build note listing every cycle, and a handoff whose Next line is /verify STORY-014.",
+      "files": [],
+      "expectations": [
+        "Calls devforgeai worktree ensure STORY-014 before writing any file.",
+        "Calls devforgeai phase set build --id STORY-014 before the first Write.",
+        "Invokes ac-test-writer once per AC-nnn in ## Acceptance Criteria order.",
+        "Runs no git command directly; every commit is devforgeai commit STORY-014 -m <message>.",
+        "Writes .devforgeai/build/STORY-014-note.yaml with one cycles entry per AC.",
+        "Writes no file whose path is absent from the story's ## Files table."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "/build STORY-014",
+      "expected_output": "The run stops at the first criterion whose Then clause names no readable outcome and prints a SEND BACK handoff to Plan citing that AC id.",
+      "files": [],
+      "expectations": [
+        "ac-test-writer returns testable false with reason then_names_no_readable_outcome.",
+        "No implementer subagent is invoked for that criterion.",
+        "The handoff Next line is /plan EPIC-002 --remedy AC-007.",
+        "The handoff Then line is /build STORY-014 --resume.",
+        "The story file .devforgeai/stories/STORY-014.md is unchanged by the run."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "/build STORY-014",
+      "expected_output": "The run stops when two criteria of the story assert opposed outcomes and cites both ids.",
+      "files": [],
+      "expectations": [
+        "ac-test-writer returns conflicts_with holding the other AC id.",
+        "The remedy list on the Next line holds both AC ids, comma separated, with no space.",
+        "The handoff block is twelve lines or fewer.",
+        "No source file is written after the conflict is reported."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/build STORY-014 --remedy FIND-002,FIND-005",
+      "expected_output": "Only the criteria the two findings name are re-opened; the other criteria keep their tests and their code.",
+      "files": [],
+      "expectations": [
+        "Calls devforgeai doc load qa-report STORY-014 to resolve the finding ids.",
+        "Invokes ac-test-writer for AC-002 and AC-006 alone.",
+        "The build note's remedy key lists FIND-002 and FIND-005.",
+        "The build note's cycles list holds two entries."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/build STORY-014 --resume",
+      "expected_output": "The run re-enters at the first criterion with no green commit and keeps every earlier cycle entry.",
+      "files": [],
+      "expectations": [
+        "Reuses the existing worktree rather than creating a second one.",
+        "The build note's resumed_at names the first ungreen criterion.",
+        "The cycles entries before that criterion keep their original commit shas.",
+        "No implementer subagent is invoked for a criterion already carrying a green commit."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "/build STORY-015",
+      "expected_output": "The run refuses to open a second worktree whose story declares a file another building story declares, and prints one Blocked line naming both stories.",
+      "files": [],
+      "expectations": [
+        "devforgeai worktree ensure STORY-015 exits 1 with DFA-E272.",
+        "The Blocked line names STORY-014, STORY-015, and the shared path.",
+        "No file under the project is written.",
+        "No devforgeai phase set build call is made."
+      ]
+    }
+  ]
+}

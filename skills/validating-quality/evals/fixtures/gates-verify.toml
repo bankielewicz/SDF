@@ -1,0 +1,109 @@
+schema = "devforgeai/gates/1"
+cli_min_version = "1.0.0"
+
+[[gate]]
+phase = "build"
+requires = "plan"
+on_fail = "send_back"
+send_back_to = "plan"
+description = "Story implemented, tests green, coverage by layer met."
+
+  [[gate.check]]
+  kind = "doc_valid"
+  id = "build-docs"
+  docs = ["reports/{id}-build.yaml"]
+
+  [[gate.check]]
+  kind = "tests_pass"
+  id = "build-tests"
+  stacks = []
+  allow_empty = false
+
+  [[gate.check]]
+  kind = "coverage_min"
+  id = "build-coverage"
+  layers = ["domain", "application", "infrastructure", "interface"]
+  overall = true
+  source = "read"
+
+[[gate]]
+phase = "verify"
+requires = "build"
+on_fail = "fail"
+send_back_to = "build"
+description = "The QA report parses, every registered verifier passed, no blocker finding stands, every deferral resolves without a cycle, coverage by layer holds, lint is clean."
+
+  [[gate.check]]
+  kind = "doc_valid"
+  id = "verify-docs"
+  docs = ["reports/{id}-qa.yaml"]
+
+  [[gate.check]]
+  kind = "verifier_pass"
+  id = "verify-acs"
+  verifiers = ["ac-compliance-verifier"]
+  min_ratio = 1.0
+  on_fail = "send_back"
+
+  [[gate.check]]
+  kind = "verifier_pass"
+  id = "verify-light"
+  verifiers = ["standards-reviewer", "anti-pattern-scanner", "constraint-auditor",
+               "coverage-gap-auditor", "dead-code-detector", "deferral-validator"]
+  min_ratio = 1.0
+  on_fail = "send_back"
+  message = "a light-mode verifier reported a blocking finding for {id}"
+
+  [[gate.check]]
+  kind = "verifier_pass"
+  id = "verify-deep"
+  verifiers = ["security-auditor", "code-quality-auditor", "adr-conformance-reviewer"]
+  min_ratio = 1.0
+  on_fail = "send_back"
+  skip_when = { path = "reports/{id}-qa.yaml", field = "mode", equals = "light" }
+  message = "a deep-mode verifier reported a blocking finding for {id}"
+
+  [[gate.check]]
+  kind = "length_between"
+  id = "verify-blockers"
+  path = "reports/{id}-qa.yaml"
+  field = "blockers"
+  min = 0
+  max = 0
+  on_fail = "send_back"
+  message = "{value} blocker findings stand for {id}"
+
+  [[gate.check]]
+  kind = "ids_resolve"
+  id = "verify-ids"
+  prefixes = ["FIND", "AC", "STORY", "ADR", "CON", "AP"]
+
+  [[gate.check]]
+  kind = "no_cycle"
+  id = "verify-deferral-cycle"
+  docs = ["reports/STORY-*-qa.yaml"]
+  root = "{id}"
+  from = "id"
+  to = "deferrals[].target"
+  prefix = "STORY"
+  on_fail = "send_back"
+  message = "a deferral chain returns to {id}"
+
+  [[gate.check]]
+  kind = "coverage_min"
+  id = "verify-coverage"
+  layers = ["domain", "application", "infrastructure", "interface"]
+  overall = true
+  source = "read"
+
+  [[gate.check]]
+  kind = "lint_clean"
+  id = "verify-lint"
+  stacks = []
+
+  [[gate.check]]
+  kind = "field_in_enum"
+  id = "verify-story-status"
+  path = "stories/{id}.md"
+  field = "status"
+  values = ["built", "verified"]

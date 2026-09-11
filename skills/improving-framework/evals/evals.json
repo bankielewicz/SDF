@@ -1,0 +1,89 @@
+{
+  "skill_name": "improving-framework",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/reflect --since 2026-08-28",
+      "expected_output": "A .devforgeai/reports/reflect-<date>.yaml at status: final, written from eleven reports with the session directory absent.",
+      "files": [],
+      "expectations": [
+        "The written report holds the twelve top-level keys schema, id, phase, status, produced_by, consumes, open_questions, window, sources, observations, recommendations, technical_debt, in that order.",
+        "sources.sessions.status is 'absent' and sources.sessions.files is an empty list.",
+        "Every observations[].sources entry that starts with .devforgeai/ names a path that exists under the workspace.",
+        "The handoff Gate line reads PASS."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "/reflect STORY-014",
+      "expected_output": "A report whose every REC-nnn cites an OBS-nnn defined in the same file.",
+      "files": [],
+      "expectations": [
+        "Every recommendations[].observations list holds one or more entries.",
+        "Every entry of a recommendations[].observations list matches an observations[].id in the same document.",
+        "Every recommendations[].target.kind is one of skill, subagent, command, template, hook, gate_threshold, framework_file.",
+        "No recommendations[].target.path is under .devforgeai/ unless that entry's target.kind is gate_threshold."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "/reflect --since 2026-08-20",
+      "expected_output": "An OBS-nnn of kind repeated_send_back naming the Explore remedy loop across two sessions.",
+      "files": [],
+      "expectations": [
+        "One observations[] entry has kind repeated_send_back and count 3.",
+        "That entry's summary names FLOW-002.",
+        "That entry's sources list holds both session ids.",
+        "That entry's evidence holds three entries whose line values are the three line numbers the session fixtures carry.",
+        "sources.sessions.status is 'present'."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/reflect STORY-014",
+      "expected_output": "An OBS-nnn of kind repeated_send_back naming the Verify-to-Build loop, and a REC-nnn citing it.",
+      "files": [],
+      "expectations": [
+        "One observations[] entry has kind repeated_send_back, phase verify, and count 3.",
+        "That entry's summary names STORY-014.",
+        "At least one recommendations[] entry lists that OBS-nnn in its observations list.",
+        "That recommendation's target.kind is subagent, skill, or command."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/reflect --since 2026-08-01",
+      "expected_output": "A technical_debt section grouped by constraint with each item's age in calendar days.",
+      "files": [],
+      "expectations": [
+        "technical_debt.groups holds three entries whose constraint values are AP-004, CON-002, none, in that order.",
+        "Every technical_debt.groups[].items[].age_days equals technical_debt.as_of minus that item's deferred_at in calendar days.",
+        "technical_debt.total is 5.",
+        "technical_debt.oldest_days equals the largest items[].age_days in the document."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "/reflect --since 2026-08-28",
+      "expected_output": "A report with no REC-nnn proposing a domain coverage below 90.0.",
+      "files": [],
+      "expectations": [
+        "No recommendations[] entry has a target.key of layer.domain.coverage_min with a proposed_value below 90.0.",
+        "A gate_threshold recommendation, when the document holds one, carries a proposed_value at or above the floor for its key.",
+        "The handoff Gate line reads PASS."
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "/reflect --since 2026-08-28",
+      "expected_output": "A PASS handoff whose Next line returns the user to Build.",
+      "files": [],
+      "expectations": [
+        "The handoff Gate line reads PASS.",
+        "The handoff Next line is '/build STORY-014'.",
+        "The handoff Then line is '/verify STORY-014'.",
+        "No line of the handoff block starts with Found or Verified, and the block holds at most twelve lines."
+      ]
+    }
+  ]
+}

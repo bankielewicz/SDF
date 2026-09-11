@@ -1,0 +1,30 @@
+schema: devforgeai/build-note/1
+id: STORY-nnn
+run: full
+worktree: ../wt/STORY-nnn
+branch: story/STORY-nnn
+base_commit: <40 lowercase hex>
+head_commit: <40 lowercase hex>
+layer: <a [[layer]].name: domain | application | infrastructure | interface>
+cycles:
+  - ac: AC-nnn
+    test_paths:
+      - <a ## Files Path of Kind test>
+    red_commit: <40 lowercase hex>
+    implementer: <backend-implementer | frontend-implementer>
+    green_commit: <40 lowercase hex, or "" while the criterion is unfinished>
+    source_paths:
+      - <a ## Files Path of Kind source, config, migration or asset>
+refactors:
+  - trigger: <build-lint | build-complexity>
+    reason: <the report check entry's reason field, copied>
+    paths:
+      - <a ## Files Path>
+    commit: <40 lowercase hex>
+integration:
+  ran: false
+  reason: not-applicable
+  test_paths: []
+  commit: ""
+remedy: []
+resumed_at: ""

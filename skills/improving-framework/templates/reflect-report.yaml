@@ -1,0 +1,33 @@
+schema: devforgeai/reflect-report/1
+id: <YYYY-MM-DD>
+phase: reflect
+status: final
+produced_by: improving-framework
+consumes: []
+open_questions: []
+window:
+  mode: <id|since>
+  subject: <IDEA-nnn|EPIC-nnn|STORY-nnn|vX.Y.Z|>
+  from: <YYYY-MM-DD>
+  to: <YYYY-MM-DD>
+  generated_at: <RFC 3339 UTC>
+  cli_version: <semver>
+sources:
+  reports: []
+  sessions:
+    status: <present|absent|empty|unreadable>
+    root: <path>
+    key: <project-key>
+    reason: ""
+    files: []
+  state:
+    current_phase: <phase>
+    active_id: <id>
+    last_gate_result: <PASS|FAIL|SEND_BACK|TRUST_FAIL|NOT_RUN>
+observations: []
+recommendations: []
+technical_debt:
+  as_of: <YYYY-MM-DD>
+  total: 0
+  oldest_days: 0
+  groups: []

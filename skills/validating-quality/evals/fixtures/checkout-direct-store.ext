@@ -1,0 +1,21 @@
+module application.checkout
+
+import domain.order
+import infrastructure.store
+
+function run_checkout(id, total):
+    order = submit_order(id, total)
+    if order.state == "rejected":
+        return order
+    handle = open_store("orders")
+    handle.write(order.id, order.state, order.total)
+    return order
+
+function replay_checkout(id, total):
+    handle = open_store("orders")
+    handle.write(id, "accepted", total)
+    return read_back(id)
+
+function read_back(id):
+    handle = open_store("orders")
+    return handle.read(id)

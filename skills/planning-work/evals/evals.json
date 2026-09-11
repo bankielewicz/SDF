@@ -1,0 +1,78 @@
+{
+  "skill_name": "planning-work",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/plan EPIC-001",
+      "expected_output": "Nine STORY files under .devforgeai/stories/ and one sprint.yaml, with the handoff naming /build for the order-1 story.",
+      "files": [],
+      "expectations": [
+        "Every file matching .devforgeai/stories/STORY-*.md carries the ten H2 headings in the order Story, Requirements, Acceptance Criteria, Constraints, Anti-patterns, Interface, Layer, Files, Dependencies, Out of scope.",
+        "Every acceptance criterion line matches the form '- AC-nnn: Given ... When ... Then ...'.",
+        "Every REQ id listed in the epic's requirements key appears in the Requirements table of at least one story.",
+        "sprint.yaml carries the eleven top-level keys in the order schema, id, phase, status, produced_by, consumes, open_questions, epic, capacity, stories, deferred.",
+        "The handoff Next line is '/build STORY-nnn' for the stories entry whose order is 1."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "/plan EPIC-002",
+      "expected_output": "Stories whose declared file sets do not overlap and whose sprint order respects every declared dependency.",
+      "files": [],
+      "expectations": [
+        "No repo-relative path appears in the Files table of two stories listed in sprint.yaml stories.",
+        "For every '- STORY-nnn:' item in a story's Dependencies section, that story's order value in sprint.yaml is lower than the dependent story's order value.",
+        "Every stories entry carries id first and status second.",
+        "The sum of stories[].points is at or below capacity.points_max."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "/plan EPIC-003",
+      "expected_output": "A sprint filled to the configured capacity with the remainder deferred by reason.",
+      "files": [],
+      "expectations": [
+        "capacity.points_max equals the config.toml [plan].sprint_capacity_points value and capacity.source is 'config'.",
+        "Every story of the epic appears exactly once across sprint.yaml stories and deferred.",
+        "Every deferred entry carries a reason of 'capacity' or 'dependency'.",
+        "capacity.points_planned equals the sum of stories[].points."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/plan EPIC-004",
+      "expected_output": "A story whose layer is interface gains a UI-nnn through the Design skill in spec mode, and its Interface section cites that id.",
+      "files": [],
+      "expectations": [
+        "The transcript holds an invocation of the designing-interfaces skill in spec mode for a STORY id.",
+        "The story whose Layer line reads 'interface' lists a UI-nnn in its Interface table and in its frontmatter consumes list.",
+        "A file .devforgeai/ui-specs/UI-nnn.md exists for every UI id a story cites.",
+        "The States covered cell holds only values that appear in that UI spec's States table."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/plan EPIC-005",
+      "expected_output": "A SEND BACK to Discover citing the ambiguous requirement, with requirements.yaml untouched.",
+      "files": [],
+      "expectations": [
+        "The handoff Gate line reads 'SEND BACK to Discover'.",
+        "The handoff Next line is '/discover IDEA-nnn --remedy REQ-nnn'.",
+        ".devforgeai/requirements.yaml is byte-identical to the file the case set up.",
+        "No .devforgeai/stories/sprint.yaml is written."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "/plan EPIC-006 --remedy AC-019",
+      "expected_output": "The cited criterion is rewritten in place and the run returns to Build.",
+      "files": [],
+      "expectations": [
+        "The AC-019 line in its story differs from the line the case set up.",
+        "Every other acceptance criterion line in that story is byte-identical to the line the case set up.",
+        "The sprint.yaml stories entry for that story reads status ready and every other line of the file is byte-identical to the file the case set up.",
+        "The handoff Next line is '/build STORY-nnn --resume'."
+      ]
+    }
+  ]
+}

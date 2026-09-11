@@ -1,0 +1,21 @@
+{
+  "schema": "devforgeai/explore-sketch-request/1",
+  "id": "IDEA-nnn",
+  "phase": "explore",
+  "status": "recorded",
+  "produced_by": "exploring-ideas",
+  "consumes": [],
+  "open_questions": [],
+  "mode": "sketch",
+  "idea_id": "IDEA-nnn",
+  "brief_path": ".devforgeai/explore/brief.md",
+  "out_dir": ".devforgeai/explore/mockups",
+  "seed_data_path": ".devforgeai/explore/seed-data.json",
+  "fidelity": "wireframe",
+  "flows": [
+    { "flow_id": "FLOW-001", "name": "<flow name>", "actor": "<who>",
+      "steps": ["<step>", "<step>"], "outcome": "<what is true at the end>" }
+  ],
+  "brand": { "name": "<idea name>", "palette_hint": "<two or three words>", "type_hint": "<two or three words>" },
+  "constraints": { "no_backend": true, "no_auth": true, "no_persistence": true, "screens_per_flow_max": 3 }
+}

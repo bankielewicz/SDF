@@ -1,0 +1,150 @@
+{
+  "skill_name": "designing-interfaces",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/design --brand EPIC-002 with requirements.yaml holding two personas and the four answers Plain, Cool neutral, One sans, Comfortable, then Wordmark",
+      "expected_output": ".devforgeai/brand/tokens.json at meta.status: approved, .devforgeai/brand/logo.svg, .devforgeai/brand/brand-kit.md",
+      "files": [
+        "evals/fixtures/config-node.toml",
+        "evals/fixtures/requirements-2-personas.yaml",
+        "evals/fixtures/coding-standards.md"
+      ],
+      "expectations": [
+        "the seven top-level keys appear in the order meta, color, type, spacing, radius, elevation, motion",
+        "every color leaf is an object with exactly light and dark",
+        "every other group's leaves are strings",
+        "the leaf counts are 12, 12, 6, 4, 3, 4",
+        "meta holds the seven document keys in document order"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "/design --brand EPIC-002 where requirements.yaml holds one persona and no brand sketch exists",
+      "expected_output": "brand-kit.md with all nine headings",
+      "files": [
+        "evals/fixtures/config-node.toml",
+        "evals/fixtures/requirements-1-persona.yaml",
+        "evals/fixtures/coding-standards.md"
+      ],
+      "expectations": [
+        "the nine headings appear in template order",
+        "## Color holds 12 rows",
+        "## Type holds 12 rows",
+        "## Spacing and shape holds 10 rows and ## Motion holds 4 rows",
+        "## Figma holds exactly the rows Status, Collection, Reason"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "/design --brand EPIC-002 in a session with no Figma plugin tools",
+      "expected_output": "brand-kit.md with Status: not mirrored",
+      "files": [
+        "evals/fixtures/config-node.toml",
+        "evals/fixtures/requirements-1-persona.yaml",
+        "evals/fixtures/coding-standards.md"
+      ],
+      "expectations": [
+        "## Figma Status is not mirrored",
+        "Reason is figma plugin not present",
+        "tokens.json exists at meta.status: approved",
+        "logo.svg exists",
+        "the run printed a PASS handoff"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "/design --spec STORY-014 with tokens.json on disk and a story citing REQ-007 and REQ-011",
+      "expected_output": "two files under .devforgeai/ui-specs/ at status: approved",
+      "files": [
+        "evals/fixtures/config-node.toml",
+        "evals/fixtures/requirements-2-personas.yaml",
+        "evals/fixtures/story-014.md",
+        "evals/fixtures/tokens-approved.json",
+        "evals/fixtures/coding-standards.md"
+      ],
+      "expectations": [
+        "each file holds the nine headings in template order",
+        "## Breakpoints holds exactly the four rows sm, md, lg, xl with 320px, 768px, 1024px, 1440px",
+        "## Accessibility holds exactly the eight named checks in order",
+        "## States holds a default row"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "/design --spec STORY-014 with tokens.json on disk",
+      "expected_output": "UI-nnn.md bodies carrying no colour or type literal",
+      "files": [
+        "evals/fixtures/config-node.toml",
+        "evals/fixtures/requirements-2-personas.yaml",
+        "evals/fixtures/story-014.md",
+        "evals/fixtures/tokens-approved.json",
+        "evals/fixtures/coding-standards.md"
+      ],
+      "expectations": [
+        "no body line matches a hex colour, an rgb( call, or an hsl( call",
+        "no body line matches a number followed by px, rem, em, or pt outside the ## Breakpoints Min width column",
+        "every token string matches TOKEN-<group>-<leaf> in lowercase",
+        "every ## Tokens used row names a token that tokens.json defines"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "/design --spec STORY-021 where one screen the story names matches no REQ-nnn and one FLOW-nnn in the brief sources no requirement",
+      "expected_output": "a SEND BACK handoff to Discover, no UI-nnn.md for the uncovered screen",
+      "files": [
+        "evals/fixtures/config-node.toml",
+        "evals/fixtures/requirements-gap.yaml",
+        "evals/fixtures/story-021-uncovered.md",
+        "evals/fixtures/brief-4-flows.md",
+        "evals/fixtures/tokens-approved.json",
+        "evals/fixtures/coding-standards.md"
+      ],
+      "expectations": [
+        "the Gate line reads SEND BACK to Discover",
+        "the Next line is /discover IDEA-nnn --remedy UI-nnn,FLOW-nnn with no other flag, and its IDEA-nnn equals the id key of requirements.yaml",
+        "the Then line is /design STORY-021 --resume",
+        ".devforgeai/ui-specs/ holds no file for the uncovered screen",
+        "the covered screens were written"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "/design UI-003 --remedy AC-009 with UI-003.md on disk and a Build report citing AC-009",
+      "expected_output": "UI-003.md with ## States, ## Interaction, and ## Accessibility changed and every other section byte-identical",
+      "files": [
+        "evals/fixtures/config-node.toml",
+        "evals/fixtures/requirements-2-personas.yaml",
+        "evals/fixtures/story-014.md",
+        "evals/fixtures/ui-003-approved.md",
+        "evals/fixtures/build-sendback.yaml",
+        "evals/fixtures/tokens-approved.json",
+        "evals/fixtures/coding-standards.md"
+      ],
+      "expectations": [
+        "## Purpose, ## Requirements, ## Anatomy, ## Breakpoints, ## Tokens used, and ## Out of scope are byte-identical to the prior file",
+        "at least one of the three named sections differs",
+        "status ends at approved",
+        "the Then line is /build STORY-nnn --resume"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "/design --sketch IDEA-001 with sketch-request.json holding four flows",
+      "expected_output": "the sketch-mode return value and files under .devforgeai/explore/mockups/",
+      "files": [
+        "evals/fixtures/config-node.toml",
+        "evals/fixtures/brief-4-flows.md",
+        "evals/fixtures/seed-data.json",
+        "evals/fixtures/sketch-request-4-flows.json"
+      ],
+      "expectations": [
+        "mode is sketch and idea_id echoes the request",
+        "every screens[].screen matches FLOW-nnn-nn and its flow_id is one of the request's flows",
+        ".devforgeai/brand/tokens.json was not written",
+        ".devforgeai/ui-specs/ holds no new file",
+        "uncovered_flows holds only ids from the request"
+      ]
+    }
+  ]
+}

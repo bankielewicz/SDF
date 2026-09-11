@@ -1,0 +1,49 @@
+# Why these two fixtures exist, and how to regenerate them
+
+Every case in cases.jsonl carries its setup inline, so no case value has the
+form FIXTURE:<name> and the runner substitutes nothing from this directory.
+The two fixtures here serve the graders instead.
+
+specs/03-discover.md describes remedy_preserved_other_requirements and
+design_remedy_created_requirement as reading "the pre-run copy of
+.devforgeai/requirements.yaml recorded by the runner". specs/01-cli.md
+"Python, the shared eval runner" records no such copy: step 3 writes
+setup.files into the workspace, step 5 states that prior state travels in the
+grader args and that the runner mirrors setup.files nowhere else, and step 10
+removes the workspace. So the baseline travels as fixture bytes beside
+graders.py, which the runner imports from its --graders path.
+
+  requirements-remedy-plan.yaml     the .devforgeai/requirements.yaml of case
+                                    disc-remedy-plan, before the run
+  requirements-remedy-design.yaml   the .devforgeai/requirements.yaml of case
+                                    disc-remedy-design, before the run
+
+graders.py resolves each through _baseline(args, <default name above>), so a
+case may name a different file with the "baseline" key of its args.
+
+Line endings: LF only. A CRLF copy changes the parsed scalars' trailing
+whitespace and the per-record digests the two graders compare.
+
+Reproduce from cases.jsonl (run from the repository root):
+
+  python - <<'EOF'
+  import json, os
+  ev = "skills/discovering-requirements/evals"
+  want = {"disc-remedy-plan": "requirements-remedy-plan.yaml",
+          "disc-remedy-design": "requirements-remedy-design.yaml"}
+  for line in open(os.path.join(ev, "cases.jsonl"), encoding="utf-8", newline=""):
+      if not line.strip():
+          continue
+      case = json.loads(line)
+      if case["id"] in want:
+          body = case["setup"]["files"][".devforgeai/requirements.yaml"]
+          path = os.path.join(ev, "fixtures", want[case["id"]])
+          with open(path, "w", encoding="utf-8", newline="") as fh:
+              fh.write(body)
+          print(path, len(body), "bytes")
+  EOF
+
+Digests of the bytes written by that recipe, sha256:
+
+  requirements-remedy-plan.yaml    e72ba3363f9186d8851f7becffa30126afa699cb1ce2ff2978f907cc0e2be837
+  requirements-remedy-design.yaml  4b5ffc83318e337f59047b3ddfb2a0bccf664a81c130386a61ac1f0dc9a50fb7

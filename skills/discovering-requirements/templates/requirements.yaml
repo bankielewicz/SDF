@@ -1,0 +1,39 @@
+schema: devforgeai/requirements/1
+id: IDEA-000
+phase: discover
+status: drafting
+produced_by: discovering-requirements
+consumes: []
+open_questions: []
+revision: 1
+revision_log: []
+accepted_by: null
+accepted_at: null
+
+personas:
+  - id: PERSONA-000
+    name: <role label, 1-40 characters>
+    description: <one sentence naming what this role does>
+    goal: <one sentence naming what this role wants from the product>
+
+epics:
+  - id: EPIC-000
+    title: <1-60 characters>
+    scope: <one sentence naming what this epic covers>
+    out_of_scope:
+      - <one sentence naming something this epic leaves out>
+    success_metric: <one sentence with one number and one unit>
+    requirements:
+      - REQ-000
+
+requirements:
+  - id: REQ-000
+    actor: PERSONA-000
+    statement: <one sentence, 1-200 characters>
+    rationale: <one sentence naming why the actor wants it>
+    acceptance_signal: <one sentence naming one observable result>
+    priority: must
+    source: user
+    status: draft
+    open_questions: []
+    traces_to: []
