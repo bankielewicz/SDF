@@ -173,10 +173,12 @@ This exact file was written to disk and run through the gate for the outputs bel
 The `PostToolUse` hook runs `doc validate` on each write and hands its result back as `additionalContext`:
 
 ```json
-{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"devforgeai doc validate: DFA-W202 .devforgeai/explore/brief.md cites FLOW-001, which consumes does not list\ndevforgeai doc validate: DFA-E210 .devforgeai/explore/brief.md references FLOW-001, which no document defines\n..."}}
+{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"devforgeai doc validate: ok  .devforgeai/explore/brief.md  explore-brief  IDEA-001"}}
 ```
 
-Reproduced, exit 0. The write stands; the message names what to rewrite.
+Reproduced, exit 0. A clean brief says so and names nothing to rewrite.
+
+This is where an early run was noisy, and the fix changes what a clean brief looks like. The `## Core flows` table is the only place a `FLOW-nnn` is written down, and the id index used to read a table cell as a *reference*, so every flow in every brief came back as `DFA-E210 ... references FLOW-001, which no document defines`, with a `DFA-W202` beside it. A table row's id cell is now a definition site, so the brief defines its own flows and the noise is gone. A real defect still reports: a `FLOW-nnn` cited in `## Non-goals` or in a send-back but absent from the table is still `DFA-E210`, which is the case the check exists for.
 
 **Step 6 — mockups.** The skill writes `.devforgeai/explore/sketch-request.json` from its template — sixteen keys at the top level in template order, the seven envelope keys beside `mode`, `idea_id`, `brief_path`, `out_dir`, `seed_data_path`, `fidelity`, `flows`, `brand`, `constraints` — then invokes the `design` skill in sketch mode through the Skill tool with that object. `## Mockups` is filled from the returned `screens[]` and the brief moves to `status: mocked`. A non-empty `uncovered_flows` adds one `open_questions` line per id and step 7 follows either way.
 
@@ -345,7 +347,7 @@ Reproduced, exit 1.
 ```
 $ devforgeai handoff
 Phase     0 · Explore         IDEA-001 · nightly-bank-reconciliat
-Done      1 ideas · 0 flows
+Done      1 ideas · 2 flows
 Gate      PASS  12 checks
 Verified  kill-case-builder · 3/3 objections
 
@@ -361,7 +363,7 @@ Reproduced, exit 0. The slug is the brief's first H1, lowercased with non-alphan
 The Stop hook wraps it in one JSON object and nothing else:
 
 ```json
-{"systemMessage":"Phase     0 · Explore         IDEA-001 · nightly-bank-reconciliat\nDone      1 ideas · 0 flows\nGate      PASS  12 checks\nVerified  kill-case-builder · 3/3 objections\n\nNext      /discover IDEA-001\nThen      /constitute IDEA-001\nBlocked   none\n\nFull report: .devforgeai/reports/IDEA-001-explore.yaml"}
+{"systemMessage":"Phase     0 · Explore         IDEA-001 · nightly-bank-reconciliat\nDone      1 ideas · 2 flows\nGate      PASS  12 checks\nVerified  kill-case-builder · 3/3 objections\n\nNext      /discover IDEA-001\nThen      /constitute IDEA-001\nBlocked   none\n\nFull report: .devforgeai/reports/IDEA-001-explore.yaml"}
 ```
 
 Reproduced, exit 0.

@@ -908,7 +908,7 @@ mod tests {
         assert_eq!(g.cli_min_version, "1.0.0");
         assert_eq!(g.gate.len(), 8, "eight gates");
         let checks: usize = g.gate.iter().map(|x| x.check.len()).sum();
-        assert_eq!(checks, 63, "sixty-three checks");
+        assert_eq!(checks, 64, "sixty-four checks");
     }
 
     #[test]

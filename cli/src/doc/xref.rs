@@ -14,6 +14,14 @@ pub struct Subject<'a> {
     pub consumes: &'a [String],
     /// The IDs the body cites, with the line each sits on.
     pub body_refs: &'a [(String, u32)],
+    /// The IDs this document defines itself.
+    ///
+    /// `consumes` names what a document takes from elsewhere, so an id this
+    /// one states and then cites again is not a consumption. A brief defines
+    /// its flows in `## Core flows` and cites them in `## Mockups`; without
+    /// this the second mention would ask for a `consumes` entry naming the
+    /// document's own work.
+    pub own_definitions: &'a [String],
 }
 
 /// `DFA-E210` for every reference with no definition, and `DFA-W201` and
@@ -73,6 +81,7 @@ pub fn resolve(subject: &Subject, index: &IdIndex) -> Vec<Diag> {
     let mut warned: Vec<&str> = Vec::new();
     for (id, line) in subject.body_refs {
         if id == subject.own_id
+            || subject.own_definitions.iter().any(|d| d == id)
             || subject.consumes.iter().any(|c| c == id)
             || warned.contains(&id.as_str())
         {
@@ -121,6 +130,7 @@ mod tests {
                 own_id: "STORY-014",
                 consumes: &consumes,
                 body_refs: &refs,
+                own_definitions: &[],
             },
             &ix,
         );
@@ -141,6 +151,7 @@ mod tests {
                 own_id: "STORY-014",
                 consumes: &consumes,
                 body_refs: &refs,
+                own_definitions: &[],
             },
             &ix,
         );
@@ -161,6 +172,7 @@ mod tests {
                 own_id: "STORY-014",
                 consumes: &consumes,
                 body_refs: &refs,
+                own_definitions: &[],
             },
             &ix,
         );
@@ -180,6 +192,7 @@ mod tests {
                 own_id: "STORY-014",
                 consumes: &[],
                 body_refs: &refs,
+                own_definitions: &[],
             },
             &ix,
         );
@@ -196,6 +209,7 @@ mod tests {
                 own_id: "STORY-014",
                 consumes: &consumes,
                 body_refs: &[],
+                own_definitions: &[],
             },
             &ix,
         );

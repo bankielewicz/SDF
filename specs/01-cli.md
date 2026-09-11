@@ -21,7 +21,7 @@ Files read, all paths relative to the project root, which is the nearest ancesto
 
 | Path | Format | Read by | Absent behaviour |
 |---|---|---|---|
-| `.devforgeai/config.toml` | TOML | every subcommand except `init`, `trust pin`, `trust verify` | error `DFA-E101`, exit 1 |
+| `.devforgeai/config.toml` | TOML | the subcommands that read a value out of it: `gate check`, `config get`, `phase set`, `report show\|note\|ingest\|aggregate`, `story validate\|files\|list`, `design lint`, `worktree *`, `init`, and `hook run` on the arms that call those. Not `doc *`, `explore prune`, `commit`, `antipattern scan`, `stack detect`, `context audit`, `hook install`, `trust *`, or `gate require` | error `DFA-E101`, exit 1 |
 | `.devforgeai/gates.toml` | TOML | `gate require`, `gate check`, `phase set`, `hook run` | error `DFA-E102`, exit 1 |
 | `.devforgeai/state.toml` | TOML | `gate require`, `gate check`, `handoff`, `phase set`, `doc validate --producer-check`, `report ingest`, `hook run` | error `DFA-E103`, exit 1 |
 | `~/.devforgeai/trust.toml` | TOML | `trust verify`, `trust pin` | `trust verify` error `DFA-E501`, exit 4 |
@@ -187,7 +187,7 @@ required = true                                # bool; default false; a `verifie
 | Phase | `name` | `report_field` | `unit` | `required` |
 |---|---|---|---|---|
 | explore | `kill-case-builder` | `verifiers.kill_case` | `objections` | `true` |
-| discover | `flow-integrity-auditor` | `verifiers.flow_integrity` | `flows` | `false` |
+| discover | `flow-integrity-auditor` | `verifiers.flow_integrity` | `flows` | `true` |
 | constitute | `architecture-reviewer` | `verifiers.architecture_reviewer` | `requirements` | `false` |
 | constitute | `alignment-auditor` | `verifiers.alignment_auditor` | `checks` | `false` |
 | plan | `story-invest-auditor` | `verifiers.story_invest` | `stories` | `true` |
@@ -207,7 +207,7 @@ required = true                                # bool; default false; a `verifie
 | design | `requirement-coverage-auditor` | `verifiers.requirement_coverage` | `screens` | `false` |
 | release | `deferral-auditor` | `verifiers.deferrals` | `deferrals` | `true` |
 
-Twenty registrations across seven phases. One `name` binds to one `phase`, which is why Build's `story-ac-verifier` and Verify's `ac-compliance-verifier` are separate registrations rather than one name in two phases. `required = false` marks a verifier no `verifier_pass` check names: `flow-integrity-auditor` reports into a document Discover writes, `architecture-reviewer` and `alignment-auditor` are read by `report_metric` checks, and `requirement-coverage-auditor` reports into a design report no gate reads.
+Twenty registrations across seven phases. One `name` binds to one `phase`, which is why Build's `story-ac-verifier` and Verify's `ac-compliance-verifier` are separate registrations rather than one name in two phases. `required = false` marks a verifier no `verifier_pass` check names: `architecture-reviewer` and `alignment-auditor` are read by `report_metric` checks, and `requirement-coverage-auditor` reports into a design report no gate reads. `flow-integrity-auditor` was in that set and is not any more — the discover gate's `flow-integrity` check is a `verifier_pass` on it at `min_ratio = 1.0` with `on_fail = "send_back"`, so its block is required and an absent one is `DFA-E316`. That check carries no `unit` key, because `verifier_pass` takes `verifiers` and `min_ratio` and nothing else; the `unit` column of this table is what the agent writes in its own envelope, not a key any check reads.
 
 `stack detect` writes `[[stack]]`, `[frontend].globs`, and `degraded`. It leaves `[[layer]]`, `[coverage]`, `[[verifier]]`, and the six phase tables `[explore]`, `[plan]`, `[build]`, `[verify]`, `[release]`, `[reflect]` at their previous values when the file exists, and writes the defaults above when it does not.
 
@@ -289,7 +289,7 @@ The path grammar of `from`, `to`, `into`, `cover`, `universe`, `metric`, and `fi
 The binary carries a table of required check kinds per phase and a table of numeric floors. Thresholds live in two files, so the floors are enforced in two places, both with error `DFA-E303`, exit 1, naming the file, the key, the offending value, and the floor. Values are rejected, not clamped, so an edited file fails loudly rather than behaving differently from what it says.
 
 - `gates.toml` is validated by `gate require`, `gate check`, and `phase set` before anything else runs: the required check kinds are present with `severity = "block"`, and `verifier_pass.min_ratio` is at or above its floor.
-- `config.toml` is validated by `config::load`, which every subcommand except `init`, `trust pin`, and `trust verify` calls: each `[[layer]].coverage_min` and `[coverage].overall_min` is at or above its floor. This check applies when `degraded = false`; with the flag set the command checks are skipped, so the numbers govern nothing and are left alone.
+- `config.toml` is validated by `config::load`, which checks that each `[[layer]].coverage_min` and `[coverage].overall_min` is at or above its floor. The validation happens where the file is loaded, and the file is loaded lazily — a subcommand that reads no value out of it never loads it and therefore never refuses on a below-floor threshold. Measured: `gate check` and `config get` refuse; `doc validate --allocate` does not, because `doc` reads no configuration at all; and `handoff` does not, because it loads the file tolerantly and falls back to the defaults, so a below-floor number cannot stop the framework from rendering the block that would tell the user about it. The refusal belongs to the commands whose behaviour the number governs, which is the set in `## Inputs`. This check applies when `degraded = false`; with the flag set the command checks are skipped, so the numbers govern nothing and are left alone.
 
 | Phase | Required check kinds | Floors |
 |---|---|---|
@@ -755,7 +755,7 @@ Every stderr line has the form `devforgeai: <code> <subcommand>: <message>`, fol
 | DFA-E400 | report show, handoff | report absent | `.devforgeai/reports/<id>-<phase>.yaml not found` | 1 |
 | DFA-E401 | report show, gate check, handoff, report aggregate | report unparsable | `<path> is not valid YAML: <parser message>` | 1 |
 | DFA-E410 | report ingest | stdout is not the verifier JSON | `subagent '<name>' output is not devforgeai/verifier/1: <parser message>` | 0 |
-| DFA-E412 | report ingest | no active ID for the verifier's phase | `state.toml has no active id for phase '<phase>'; nothing ingested` | 0 |
+| DFA-E412 | report ingest, story validate | no active ID for the verifier's phase | `state.toml has no active id for phase '<phase>'; nothing ingested` | 0 |
 | DFA-E413 | report note | the note file fails the `devforgeai/build-note/1` schema | `<path> key '<key>' is <found>, expected <expected>; nothing written` | 1 |
 | DFA-E421 | report aggregate | the session root resolves outside the user's home | `session root '<path>' is outside <home>; sessions unreadable` | 1 |
 | DFA-E430 | report aggregate | neither or both of `<ID>` and `--since` | `pass one id (IDEA-nnn, EPIC-nnn, STORY-nnn, vX.Y.Z) or --since <YYYY-MM-DD>` | 3 |
@@ -809,7 +809,7 @@ There is no `commands/` copy: a skill and a command file of the same name both p
 ```json
 {
   "created": [".devforgeai", ".devforgeai/reports"],
-  "copied": { "skills": 9, "agents": 14 },
+  "copied": { "skills": 9, "skill_files": 102, "agents": 46 },
   "commands": ["explore", "discover", "constitute", "plan", "build", "verify", "release", "design", "reflect"],
   "hooks": { "settings": "merged", "git": ["pre-commit", "commit-msg", "pre-push"] },
   "stacks": ["rust"],
@@ -825,7 +825,7 @@ Human output:
 
 ```
 Initialised .devforgeai/ in C:\Projects\acme
-Copied     9 skills, 14 agents
+Copied     9 skills (102 files), 46 agents
 Commands   /explore, /discover, /constitute, /plan, /build, /verify, /release, /design, /reflect
 Hooks      .claude/settings.json merged; git hooks pre-commit, commit-msg, pre-push
 CLAUDE.md  devforgeai section written
@@ -928,6 +928,8 @@ The predecessor is the `requires` key of the `<phase>` gate; an empty string exi
 | `gate require build <STORY-nnn>` | `plan` | the `SPRINT-nnn` of the `stories/sprint.yaml` whose `stories[]` or `deferred[]` lists the story; a story listed in no sprint is `DFA-E013`, exit 3 | `reports/<SPRINT-nnn>-plan.yaml` |
 | `gate require verify <STORY-nnn>` | `build` | the same `STORY-nnn` | `reports/<STORY-nnn>-build.yaml` |
 | `gate require release <vX.Y.Z>` | `verify` | every `STORY-nnn` under `stories` in `releases/<vX.Y.Z>.yaml`, or, when that file is absent, every `stories[].id` of `stories/sprint.yaml` | one `reports/<STORY-nnn>-verify.yaml` per story; every one passes or the call fails |
+
+**Why the release gate carries `requires = ""`.** Every other phase names one predecessor phase and one predecessor subject, and `requires` holds the phase. Release cannot: its predecessor is per-story, and a version is a set of stories rather than one subject, so there is no single `reports/<id>-verify.yaml` for `requires` to point at. The empty string is therefore the accurate value and not an omission. The check it stands in for happens in the arm above, which reads every named story's verify report — and it happens at `phase set` time, at the Release skill's workflow step 2, which is why a story short of a verify PASS stops the run before the version is assembled rather than at the gate after it.
 | `gate require reflect <window>` | none | — | none; exit 0, since `requires` is `""`. The arm imposes no id shape: a Reflect window is a date, an `IDEA-nnn`, an `EPIC-nnn`, a `STORY-nnn`, or a version |
 | `gate require design <id>` | — | — | exit 1 with `DFA-E300`; Design is not a phase and holds no gate, and `gate check --phase design` fails the same way |
 
@@ -1086,7 +1088,7 @@ Keys, in this order, first in the document, and with no other top-level key in t
 
 #### ID index, definitions, references
 
-The index is built by walking `.devforgeai/`. An ID is *defined* by any of: the frontmatter `id` of a document; an ID at the start of a Markdown heading line, as in `### AC-003 …`; a Markdown list item whose text begins `<PREFIX>-<nnn>:` at the start of the line, which is the acceptance-criterion form `- AC-003: Given …`; a mapping key `id:` inside a YAML sequence item. Every other occurrence of the pattern `\b[A-Z]+-[0-9]{3}\b` is a *reference*. A reference with no definition is `DFA-E210`. A definition appearing twice is `DFA-E209`. An entry of `consumes` with no definition is `DFA-E210`. `DFA-W201` and `DFA-W202` report the two directions of drift between `consumes` and the body.
+The index is built by walking `.devforgeai/`. An ID is *defined* by any of: the frontmatter `id` of a document; an ID at the start of a Markdown heading line, as in `### AC-003 …`; a Markdown list item whose text begins `<PREFIX>-<nnn>:` at the start of the line, which is the acceptance-criterion form `- AC-003: Given …`; a mapping key `id:` inside a YAML sequence item; and the id cell of a Markdown table row, the first cell when it holds an id alone. That last form is what makes `## Core flows` define its `FLOW-nnn` ids: the brief states them nowhere else, and without it every flow id in the framework was a reference to a definition that does not exist. Every other occurrence of the pattern is a *reference*, with one exception: `PREFIX-000` is neither. The `000` suffix is the placeholder a template uses for an example entry (`ADR-000`, `STORY-000`), so it is never indexed as a definition and never reported as an unresolved reference. A real id starts at `001`, which is what `doc validate --allocate` returns for an unused prefix. A reference with no definition is `DFA-E210`. A definition appearing twice is `DFA-E209`. An entry of `consumes` with no definition is `DFA-E210`. `DFA-W201` and `DFA-W202` report the two directions of drift between `consumes` and the body.
 
 `--allocate <prefix>` reads the index, takes the highest numeric suffix for the prefix, adds one, and reserves the result on disk before printing it. An unused prefix returns `<prefix>-001`. A prefix whose highest number is `999` is `DFA-E215`. The prefix is one of the sixteen §5 prefixes: `IDEA`, `FLOW`, `PERSONA`, `REQ`, `EPIC`, `CON`, `AP`, `ADR`, `STORY`, `AC`, `SPRINT`, `UI`, `TOKEN`, `FIND`, `OBS`, `REC`; any other prefix is `DFA-E214`.
 
@@ -1931,6 +1933,15 @@ description = "Every requirement is complete, every actor resolves, every requir
   field = "accepted_by"
   message = "requirements.yaml is not accepted"
 
+  [[gate.check]]
+  kind = "verifier_pass"
+  id = "flow-integrity"
+  severity = "block"
+  on_fail = "send_back"
+  verifiers = ["flow-integrity-auditor"]
+  min_ratio = 1.0
+  message = "flow-integrity-auditor reports {value} of the brief's flows clean"
+
 [[gate]]
 phase = "constitute"
 requires = "discover"
@@ -2292,7 +2303,7 @@ description = "The reflect report exists and parses, every REC cites an OBS, eve
   files = ["gates.toml", "config.toml"]
 ```
 
-Eight gates, sixty-three checks. The `[[verifier]]` names the `verifier_pass` and `report_metric` checks read are the twenty registrations in `## Outputs`; a gate that names a subagent absent from that registry fails with `DFA-E316` rather than passing silently.
+Eight gates, sixty-four checks. The `[[verifier]]` names the `verifier_pass` and `report_metric` checks read are the twenty registrations in `## Outputs`; a gate that names a subagent absent from that registry fails with `DFA-E316` rather than passing silently.
 
 ## Send-back
 
@@ -2325,7 +2336,7 @@ Each row is one skill. The columns describe that skill's relationship with the C
 | Plan | `doc load requirements -`, `doc load context all`, `doc load ui-spec <UI-nnn>`; `story validate` result | `stories/STORY-nnn.md` (STORY-nnn, AC-nnn), `stories/sprint.yaml` (SPRINT-nnn) | Discover on an unresolved REQ; Constitute on a contradicted ADR | Build, when a story is not implementable as written | none | reads `[active].constitute`; writes `[active].plan` | `gate require plan $ARGUMENTS[0]`, `doc load requirements $ARGUMENTS[0]`, `doc load context all`, `doc load ui-spec <UI-nnn>`, `doc validate --allocate STORY`, `--allocate AC`, `--allocate SPRINT`, `story validate --scope sprint`, `report show <STORY-nnn> <build|verify>`, `phase set plan --id <SPRINT-nnn>` | every `stories/STORY-nnn.md`, `stories/sprint.yaml` | plan |
 | Build | `doc load story <STORY-nnn>`, `doc load context all`; `gate check --phase build` result; `--partial` annotations on PostToolUse | code and tests in the project tree; `reports/STORY-nnn-build.yaml` is CLI-written | Plan, when the story document fails validation or an AC is untestable | Verify, when a finding names a defect in the implementation | none | reads `[active].plan`; writes `[active].build` | `gate require build $ARGUMENTS[0]`, `doc load story $ARGUMENTS[0]`, `doc load context all`, `doc load sprint -`, `doc load ui-spec <UI-nnn>`, `doc load qa-report <STORY-nnn>`, `config get <key>`, `worktree ensure|list|remove <STORY-nnn>`, `phase set build --id <STORY-nnn>`, `commit <STORY-nnn> -m <message>`, `story files --diff --id <STORY-nnn>`, `antipattern scan --id <STORY-nnn>`, `report show <STORY-nnn> build --check <check-id>`, `report note <STORY-nnn> build --key build --file <path>` | `stories/STORY-nnn.md`; the CLI writes, and then validates, the build report | build |
 | Verify | `doc load story <STORY-nnn>`, `report show <STORY-nnn> build`; ingested verifier blocks | `reports/STORY-nnn-qa.yaml` (FIND-nnn) | Build on an implementation defect; Plan on an untestable AC | Release, when a released story has no passing QA report | none | reads `[active].build`; writes `[active].verify` | `gate require verify $ARGUMENTS[0]`, `doc load story $ARGUMENTS[0]`, `doc load context all`, `report show <STORY-nnn> build`, `report show <vX.Y.Z> release`, `doc validate --allocate FIND`, `phase set verify --id <STORY-nnn>`, `gate check --phase verify --id <STORY-nnn>`, `handoff` | `reports/STORY-nnn-qa.yaml` | verify |
-| Release | `doc load qa-report <STORY-nnn>`, `report show <STORY-nnn> verify` | `releases/vX.Y.Z.yaml` | Verify, when a story in the release has no PASS verify gate | Reflect, as a recommendation only, which sets no gate | none | reads `[active].verify`; writes `[active].release` | `story list --status built --json`, `phase set release --id <vX.Y.Z>`, `report show <STORY-nnn> verify`, `doc load qa-report <STORY-nnn>`, `doc load story <STORY-nnn>`, `doc load adr all`, `doc load requirements -`, `gate check --phase release --id <vX.Y.Z>`, `doc validate .devforgeai/releases/<vX.Y.Z>.yaml`, `handoff --phase release --id <vX.Y.Z>` | `releases/vX.Y.Z.yaml` | release |
+| Release | `doc load qa-report <STORY-nnn>`, `report show <STORY-nnn> verify` | `releases/vX.Y.Z.yaml` | Verify, when a story in the release has no PASS verify gate — enforced per story by `gate require release` at `phase set` (workflow step 2), not by the release gate's `requires`, which is `""` because the predecessor is a set of stories rather than one subject | Reflect, as a recommendation only, which sets no gate | none | reads `[active].verify`; writes `[active].release` | `story list --status built --json`, `phase set release --id <vX.Y.Z>`, `report show <STORY-nnn> verify`, `doc load qa-report <STORY-nnn>`, `doc load story <STORY-nnn>`, `doc load adr all`, `doc load requirements -`, `gate check --phase release --id <vX.Y.Z>`, `doc validate .devforgeai/releases/<vX.Y.Z>.yaml`, `handoff --phase release --id <vX.Y.Z>` | `releases/vX.Y.Z.yaml` | release |
 | Design | `doc load requirements -`; `design lint` result on PreToolUse | `brand/tokens.json` (TOKEN-name), `ui-specs/UI-nnn.md` (UI-nnn) | Discover, when a UI spec needs a requirement that does not exist | Plan and Build, when a story references a UI-nnn that does not exist | none | reads `[current].phase` only; writes none, since Design is cross-cutting and advances no phase | `doc validate --allocate UI`, `doc load requirements -`, `doc load story <STORY-nnn>`, `doc load ui-spec <UI-nnn>`, `design lint --tokens`, `design lint <paths>`, `handoff --phase design --id <UI-nnn>`, `report show <UI-nnn> design` | `ui-specs/UI-nnn.md`, `brand/tokens.json` | none; Design is cross-cutting and `gates.toml` has one gate per phase |
 | Reflect | `report show <id> <phase>` for every report in the window; `handoff` history from `[last_handoff]` | `reports/reflect-<date>.yaml` (OBS-nnn, REC-nnn) | any phase, as a recommendation that sets no gate | none; a recommendation produces no send-back | none | reads `[last_gate]`, `[last_handoff]`, `[active]`; writes none | `report aggregate <ID|--since <date>> --json`, `doc validate --allocate OBS`, `--allocate REC`, `gate check --phase reflect --id <date>`, `handoff --phase reflect --id <date>`, `report show <id> <phase>` | `reports/reflect-<date>.yaml` | none; Reflect owns no phase and its output is advisory, per §5 |
 | devforgeai CLI | itself; `hook run` calls the other subcommands in process | `config.toml`, `gates.toml`, `state.toml`, `reports/<ID>-<phase>.yaml`, the hook files, the handoff block | none; the CLI produces a send-back result and does not request one | none; a send-back names a phase, and the CLI owns no phase | none; the CLI invokes no subagent and ingests the output of registered ones | reads and writes every key of `state.toml` | every subcommand in `## CLI calls` | every document in the doc-type table | every gate in `gates.toml`, as the evaluator rather than the owner |

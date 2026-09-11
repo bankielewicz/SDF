@@ -240,7 +240,11 @@ The `Done` counts are measured by the binary from the id index over `requirement
 
 ## The send-back to Explore
 
-Discover sends back to Explore only, from entry point A and the resume form only, and at step 4 only.
+Discover sends back to Explore only, and there are two points it can happen from.
+
+**At step 4, before any document exists.** Entry point A and the resume form run `flow-integrity-auditor` over the brief's `## Core flows`, and a non-empty `actorless` or `contradictions` stops the run there with no `requirements.yaml` written.
+
+**At the gate.** The `discover-flows` check is a `verifier_pass` on the same auditor with `on_fail = "send_back"`, so a ratio below 1.0 in the ingested `verifiers.flow_integrity` block sends back from the gate as well. That closes a gap a live run found: the send-back used to be decided only at step 4, so a run that got past it and then produced a flow defect reached a PASS with nothing to catch it. Both paths name the same destination.
 
 | Condition | Detected by | Ids cited |
 |---|---|---|

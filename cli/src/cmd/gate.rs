@@ -162,8 +162,13 @@ pub fn check(ctx: &mut Ctx, args: &GateCheckArgs) -> Result<Outcome, CliError> {
         } else {
             c.reason.clone()
         };
+        // A value at or past its column width would otherwise run into the
+        // next one: `kill-case-answered` is eighteen characters, and the line
+        // read `kill-case-answeredverifier_pass`. Padding to one less than the
+        // width and joining with a space keeps the columns aligned for every
+        // value that fits and still separates one that does not.
         human.push(format!(
-            "  {:<8}{:<18}{:<16}{}",
+            "  {:<7} {:<17} {:<15} {}",
             c.status, c.id, c.kind, note
         ));
     }

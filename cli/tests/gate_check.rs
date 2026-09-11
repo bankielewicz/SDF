@@ -2650,3 +2650,36 @@ fn an_unknown_payload_key_round_trips_untouched() {
         "the whole subtree survives, not the scalar alone"
     );
 }
+
+#[test]
+fn a_long_check_id_does_not_run_into_its_kind() {
+    let p = common::Project::new();
+    p.set_phase("explore", "IDEA-003");
+
+    let mut ctx = p.ctx();
+    let args = devforgeai::cli::GateCheckArgs {
+        phase: "explore".to_string(),
+        id: Some("IDEA-003".to_string()),
+        partial: false,
+        no_run: false,
+    };
+    let out = devforgeai::cmd::gate::check(&mut ctx, &args).expect("the gate runs");
+
+    // `kill-case-answered` is exactly the column width, and the line read
+    // `kill-case-answeredverifier_pass`.
+    let line = out
+        .human
+        .iter()
+        .find(|l| l.contains("kill-case-answered"))
+        .expect("the check line");
+    assert!(
+        line.contains("kill-case-answered verifier_pass"),
+        "columns are separated whatever their width: {line:?}"
+    );
+    for l in out.human.iter().filter(|l| l.starts_with("  ")) {
+        assert!(
+            !l.contains("verifier_pass") || l.contains(" verifier_pass"),
+            "no column runs into the next: {l:?}"
+        );
+    }
+}

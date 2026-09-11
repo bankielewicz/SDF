@@ -408,19 +408,28 @@ description = "Every requirement is complete, every actor resolves, every requir
   [[gate.check]]
   kind = "fields_present"
   id = "accepted"
-  path = "accepted_by"
+  field = "accepted_by"
   message = "requirements.yaml is not accepted"
+
+  [[gate.check]]
+  kind = "verifier_pass"
+  id = "flow-integrity"
+  severity = "block"
+  on_fail = "send_back"
+  verifiers = ["flow-integrity-auditor"]
+  min_ratio = 1.0
+  message = "flow-integrity-auditor reports {value} of the brief's flows clean"
 ```
 
 Gate-level keys are the six 01-cli.md defines: `phase`, `requires`, `on_fail`, `send_back_to`, `document`, `description`. `document` supplies the path every check resolves against, so no check repeats it. No gate-level `report` or `path` key exists; the report path comes from `gate check`.
 
-What each check reads, per the kind table in 01-cli.md `## Outputs`. `fields_present` in its `collection` form passes when every entry of `requirements` carries every name in `fields` with a non-empty value, and in its `path` form, used by `accepted`, passes when the value at `accepted_by` is non-null. `ids_resolve` in its `from`/`to` form passes when every value at `requirements[].actor` equals some value at `personas[].id`. `length_between` passes when every list at `epics[].requirements` holds at least `min` entries after dropping entries whose `status` is in `exclude_status`. `set_cover` passes when the multiset at `epics[].requirements` equals the set at `requirements[].id` minus withdrawn records, with no duplicate.
+What each check reads, per the kind table in 01-cli.md `## Outputs`. `fields_present` in its `collection` form passes when every entry of `requirements` carries every name in `fields` with a non-empty value, and in its `field` form, used by `accepted`, passes when the value at `accepted_by` is non-null. `ids_resolve` in its `from`/`to` form passes when every value at `requirements[].actor` equals some value at `personas[].id`. `length_between` passes when every list at `epics[].requirements` holds at least `min` entries after dropping entries whose `status` is in `exclude_status`. `set_cover` passes when the multiset at `epics[].requirements` equals the set at `requirements[].id` minus withdrawn records, with no duplicate. `verifier_pass` passes when `verifiers.flow_integrity` is in the report and its `passed / total` is at or above `min_ratio`; a `total` of 0 reads as a ratio of 1.0, so a run whose brief carried no `## Core flows` rows passes rather than failing on an empty audit.
 
-All five checks take the gate-level `on_fail = "fail"`; none sets a per-check `severity` or `on_fail`, so no check in this gate produces `send_back`. `send_back_to = "explore"` records where a send-back goes when one happens, and the send-back itself is decided at workflow step 4, before this document exists. The `accepted` check tests presence only: it reads whether `accepted_by` holds a value, not who wrote it.
+Five of the six checks take the gate-level `on_fail = "fail"` and set no per-check `severity` or `on_fail`. The sixth, `flow-integrity`, is a `verifier_pass` on `flow-integrity-auditor` with `on_fail = "send_back"` and `send_back_to = "explore"`, so the gate itself produces the send-back when the auditor's block shows a ratio below 1.0. That closes a hole the live run found: the send-back was decided only at workflow step 4, before `requirements.yaml` exists, so a run that got past step 4 and then produced a flow defect reached a PASS with nothing to catch it. The two paths agree on the destination — `send_back_to = "explore"` at the gate level records it for the other five checks, and the check repeats it for its own. The `accepted` check tests presence only: it reads whether `accepted_by` holds a value, not who wrote it.
 
 ## Send-back
 
-Discover sends back to Explore only, and only from entry point A, and only at step 4.
+Discover sends back to Explore only, from entry point A and the resume form, and from one of two points. **At step 4**, before any document exists: `flow-integrity-auditor` runs over the brief's `## Core flows` and a non-empty `payload.actorless` or `payload.contradictions` stops the run there with no `requirements.yaml` written. **At the gate**, through the `flow-integrity` check, which is a `verifier_pass` on the same auditor at `on_fail = "send_back"`. Both name Explore. The conditions below are the same either way; only the point at which they are noticed differs.
 
 | Condition | Detected by | IDs cited | Handoff `Next` |
 |---|---|---|---|

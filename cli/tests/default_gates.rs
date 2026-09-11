@@ -60,13 +60,13 @@ fn the_default_file_is_the_spec_block_byte_for_byte() {
 }
 
 #[test]
-fn the_default_file_holds_eight_gates_and_sixty_three_checks() {
+fn the_default_file_holds_eight_gates_and_sixty_four_checks() {
     // The count the spec asserts immediately after the fence. It catches
     // transcription loss that a diff of two equal-but-wrong files would not.
     let g = gates::parse(DEFAULT_GATES).expect("the default file parses");
     assert_eq!(g.gate.len(), 8, "eight gates");
     let checks: usize = g.gate.iter().map(|x| x.check.len()).sum();
-    assert_eq!(checks, 63, "sixty-three checks");
+    assert_eq!(checks, 64, "sixty-four checks");
 }
 
 #[test]
@@ -319,4 +319,35 @@ fn every_verifier_the_default_gates_name_is_registered() {
             }
         }
     }
+}
+
+#[test]
+fn the_discover_gate_can_send_a_brief_back_to_explore() {
+    let g = gates::parse(DEFAULT_GATES).expect("parse");
+    let discover = g
+        .gate
+        .iter()
+        .find(|x| x.phase == "discover")
+        .expect("the discover gate");
+
+    // The skill's `## Send-back` says an actorless flow or a contradiction
+    // sends the brief back. Without a check whose `on_fail` is `send_back`,
+    // `gate check --phase discover` can only ever fail, and the send-back the
+    // skill documents is unreachable.
+    assert_eq!(discover.send_back_to, "explore");
+    let check = discover
+        .check
+        .iter()
+        .find(|c| c.kind == "verifier_pass")
+        .expect("a verifier_pass check on the discover gate");
+    assert_eq!(check.id, "flow-integrity");
+    assert_eq!(check.on_fail, "send_back");
+    assert_eq!(
+        check
+            .keys
+            .get("verifiers")
+            .and_then(|v| v.as_str().map(str::to_string)),
+        None,
+        "verifiers is a list, not a string"
+    );
 }

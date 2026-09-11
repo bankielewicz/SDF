@@ -254,3 +254,25 @@ From the defect the first hooks-on eval run surfaced. Written from the coordinat
 - `specs/01-cli.md` `hook run` SessionStart row and `specs/00-conventions.md` §7 hook table: the `detect` on session start is idempotent and preserves `manual` stacks.
 - `specs/00-conventions.md` §4 CLI table: the `stack detect` row carries the merge rule in one sentence.
 - `specs/01-cli.md` `## Evals` tamper guard: `config.toml` is compared parsed and with `generated_at` removed, because the SessionStart `detect` rewriting that one timestamp is the CLI doing its job rather than the model rewriting the file that judges it. The guard's verb changed from "hashed" to "compared", since one of the four is no longer a plain digest equality.
+
+## Eighth pass — the user-guide author's live reproduction; `docs/` now owned
+
+| # | Item | State of the code when written | Where it landed |
+|---|---|---|---|
+| 1 | a table row's id cell is a definition site; `PREFIX-000` is neither definition nor reference | **landed** — `cli/src/doc/ids.rs:177-198` (`table_cells`, the `000` placeholder). Reproduced live: a brief whose `## Core flows` names `FLOW-001` and `FLOW-002` now validates `ok`, where it used to raise `DFA-E210` per flow | conventions §5, `01-cli` ID index |
+| 2 | discover gate gains a `verifier_pass` on `flow-integrity-auditor`, `on_fail = "send_back"` | **not landed** — no `flow-integrity-auditor` in `cli/templates/gates.default.toml`, and F2 owns the `01-cli` fence | rule mirrored in `03-discover` `## Gate`, with the check added to that spec's fence in house style. The skill's `## Send-back` was confirmed to match |
+| 3 | which subcommands load `config.toml` | **measured** — `ctx.config()` is lazy and called in eight `cmd/*.rs` files plus `gate.rs`; `doc`, `explore`, `commit`, `antipattern`, `stack`, `context`, `hook`, `trust` never call it, and `handoff.rs:33` calls it tolerantly (`.cloned().unwrap_or_default()`) | `01-cli` `## Inputs` row and the validation bullet, both replacing "every subcommand except init, trust pin, trust verify" |
+| 4 | `init` prints `Copied 9 skills (102 files), 46 agents` | **not landed** — the live binary still prints `Copied 102 skills, 46 agents`. Both counts verified against the tree: 102 non-`evals` files under `skills/`, 46 `agents/*.md` | `01-cli` human output and `data.copied`, which gains `skill_files` |
+| 5 | the release gate's `requires = ""` is by design | — | `01-cli` `gate require` table and the pipeline row: the predecessor is per-story, so there is no single report for `requires` to name, and the per-story check happens at `phase set` (Release step 2) |
+| 6 | `DFA-E412` subcommand column gains `story validate` | **partly** — `cli/src/cmd/story.rs:67,559` raise it, but it still exits 0; F2 is making it non-zero | `01-cli` error table, code and exit unchanged, so the bijection is untouched |
+| 7 | `docs/` | see below | five passages updated |
+
+**`docs/` (item 7).** Three of the five were reproduced live against a freshly built release binary in a throwaway project:
+
+- The Explore `PostToolUse` noise: the example now shows a clean `doc validate: ok` line, with a paragraph on why the old `DFA-E210`/`DFA-W202` pair appeared and what still reports (a `FLOW-nnn` cited outside the table).
+- `Done 1 ideas · 0 flows` → `Done 1 ideas · 2 flows`, reproduced from `devforgeai handoff` against a two-flow brief. Six occurrences across the guide and the Explore example. The `0 ideas · 0 flows` lines are the FAIL and Design cases and are correct as they stand.
+- `story validate` with no active id: reproduced as `DFA-E412` at exit 0 today; the guide's CLI table now describes the non-zero exit F2 is landing.
+
+Two were written to the fixed behaviour rather than reproduced, because the code is not there yet: the `init` count line, and the discover send-back, which the Discover example now describes as two paths — step 4 before any document exists, and the gate check — with the gap that motivated the second.
+
+One check went red during this pass and was not caused by it: `f6b_cmdcheck.py` failed on `06-build.md` because F4 had edited the `implementing-stories` description (`one failing test` → `one failing test case`) after my last copy. The `## Command` fence was re-copied; the check is green again. `cargo test --test default_gates` is now 15 tests rather than 14, F2 having added one.

@@ -63,9 +63,15 @@ pub fn validate(ctx: &mut Ctx, id: Option<&str>, scope: &str) -> Result<Outcome,
         _ => {
             let active = ctx.state()?.active.build.clone();
             if active.is_empty() {
+                // Scope `active` with no active story validates nothing, and
+                // exiting 0 made that read as "every story is sound". The
+                // subject is a required argument the caller did not supply,
+                // which is what `DFA-E011` names and why its exit is the usage
+                // class. The gate's `story_valid` check reads this list rather
+                // than the exit code, so it still fails the check the same way.
                 warnings.push(Diag::new(
-                    "DFA-E412",
-                    "state.toml has no active id for phase 'build'; nothing validated",
+                    "DFA-E011",
+                    "'story validate' requires --id, or an active build story in state.toml; nothing validated",
                 ));
                 Vec::new()
             } else {
@@ -263,6 +269,10 @@ pub fn validate(ctx: &mut Ctx, id: Option<&str>, scope: &str) -> Result<Outcome,
     diags.extend(sprint_errors);
     let bad = failed > 0 || extra > 0;
     warnings.extend(diags);
+    // A run that validated nothing is not a run that found nothing wrong.
+    // The exit follows the diagnostic's own row, so the pair a caller reads
+    // out of the error table is the pair the process gives.
+    let nothing_validated = warnings.iter().any(|d| d.code == "DFA-E011");
 
     Ok(Outcome {
         human,
@@ -270,7 +280,13 @@ pub fn validate(ctx: &mut Ctx, id: Option<&str>, scope: &str) -> Result<Outcome,
         warnings,
         degraded: ctx.degraded(),
         project,
-        exit: Some(if bad { 1 } else { 0 }),
+        exit: Some(if nothing_validated {
+            3
+        } else if bad {
+            1
+        } else {
+            0
+        }),
         raw: None,
         stderr: Vec::new(),
         ..Default::default()

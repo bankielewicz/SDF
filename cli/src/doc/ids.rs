@@ -174,6 +174,35 @@ pub fn is_id(s: &str) -> bool {
     split_id(s).is_some()
 }
 
+/// True for `PREFIX-000`, the placeholder every template uses to show the
+/// shape of an id without naming one.
+///
+/// Allocation starts at `001`, so `000` can never be a real subject. Treating
+/// it as a reference made `doc validate` refuse a decision file written from
+/// its own template, because the `carry_forward` note cites `ADR-000`.
+pub fn is_placeholder(id: &str) -> bool {
+    split_id(id).map(|(_, n)| n == 0).unwrap_or(false)
+}
+
+/// The cells of a Markdown table row, or `None` when the line is not one.
+fn table_cells(line: &str) -> Option<Vec<&str>> {
+    let t = line.trim();
+    if !t.starts_with('|') {
+        return None;
+    }
+    Some(t.trim_matches('|').split('|').collect())
+}
+
+/// True when every cell is a run of dashes and colons, as the row under a
+/// table header is.
+fn is_separator_row(cells: &[&str]) -> bool {
+    !cells.is_empty()
+        && cells.iter().all(|c| {
+            let t = c.trim();
+            !t.is_empty() && t.chars().all(|ch| ch == '-' || ch == ':')
+        })
+}
+
 /// Every `\b[A-Z]+-[0-9]{3}\b` occurrence in `line`, with its zero-based column.
 pub fn scan_ids(line: &str) -> Vec<(usize, String)> {
     let chars: Vec<char> = line.chars().collect();
@@ -232,6 +261,10 @@ pub fn index_text(
     index: &mut IdIndex,
 ) {
     let lines: Vec<&str> = text.lines().collect();
+    // The column of the current Markdown table whose header is `ID`, if any.
+    // A table is the fourth definition form: `## Core flows` states each flow
+    // as a row, and its `FLOW-nnn` is defined there and nowhere else.
+    let mut id_column: Option<usize> = None;
 
     for (i, raw) in lines.iter().enumerate() {
         let line_no = i as u32 + 1;
@@ -240,6 +273,41 @@ pub fn index_text(
 
         // Which IDs on this line are definitions rather than references.
         let mut defined_here: Vec<String> = Vec::new();
+
+        if !in_frontmatter {
+            match table_cells(trimmed) {
+                None => id_column = None,
+                Some(cells) => {
+                    if is_separator_row(&cells) {
+                        // The row under a header; the header itself was read on
+                        // the previous line.
+                    } else if id_column.is_none() {
+                        // A header row is a table row whose next line is the
+                        // separator. Only a column headed `ID` defines: the
+                        // `## Mockups` table also leads with a `FLOW-nnn`, and
+                        // reading that as a second definition would make every
+                        // flow a duplicate.
+                        let next_is_separator = lines
+                            .get(i + 1)
+                            .and_then(|l| table_cells(l.trim_start()))
+                            .map(|c| is_separator_row(&c))
+                            .unwrap_or(false);
+                        if next_is_separator {
+                            id_column = cells
+                                .iter()
+                                .position(|c| c.trim().eq_ignore_ascii_case("id"));
+                        }
+                    } else if let Some(col) = id_column {
+                        if let Some(cell) = cells.get(col) {
+                            let value = cell.trim();
+                            if is_id(value) {
+                                defined_here.push(value.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         if in_frontmatter {
             // The frontmatter `id:` value defines the document's own ID.
@@ -281,6 +349,14 @@ pub fn index_text(
         }
 
         for (_, id) in scan_ids(raw) {
+            // `PREFIX-000` is the placeholder the templates use to show the
+            // shape of an id without naming one: `ADR-000` in a decision's
+            // `carry_forward`, `STORY-000` in the release example. It is
+            // neither a definition nor a reference, so a document written from
+            // its own template does not fail for citing it.
+            if is_placeholder(&id) {
+                continue;
+            }
             let site = Site {
                 path: path.to_string(),
                 line: line_no,

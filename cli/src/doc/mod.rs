@@ -770,6 +770,7 @@ fn check_references(fm: &Frontmatter, text: &str, rel: &str, ctx: &Ctx, doc: &mu
         }
     }
     body_refs.sort_by_key(|(_, l)| *l);
+    let own_definitions: Vec<String> = local.definitions.keys().cloned().collect();
 
     let diags = xref::resolve(
         &xref::Subject {
@@ -777,6 +778,7 @@ fn check_references(fm: &Frontmatter, text: &str, rel: &str, ctx: &Ctx, doc: &mu
             own_id: &own_id,
             consumes: &consumes,
             body_refs: &body_refs,
+            own_definitions: &own_definitions,
         },
         ctx.index,
     );

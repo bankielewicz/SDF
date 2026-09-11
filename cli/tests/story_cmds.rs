@@ -679,3 +679,43 @@ fn story_validate_refuses_a_bad_scope_even_with_an_id() {
     let msg = &err.diag().expect("diag").message;
     assert!(msg.contains("bogus"), "{msg}");
 }
+
+#[test]
+fn story_validate_with_no_active_story_exits_non_zero() {
+    let p = Project::new();
+    // Scope `active` with nothing active: the run validates no story at all.
+    assert_eq!(p.state().active.build, "");
+
+    let mut ctx = p.ctx();
+    let out = devforgeai::cmd::story::validate(&mut ctx, None, "active").expect("outcome");
+
+    // Exiting 0 here read as "every story is sound" when in fact none was
+    // read, which is the silent pass the gate exists to prevent.
+    assert_ne!(out.exit.unwrap_or(0), 0, "nothing validated is not a pass");
+    let d = out
+        .warnings
+        .iter()
+        .find(|d| !d.is_warning())
+        .expect("a diagnostic naming the missing subject");
+    assert_eq!(
+        devforgeai::errors_table::exit_for(d.code),
+        out.exit,
+        "the exit is the one the error table gives the code"
+    );
+    assert!(d.message.contains("--id"), "{}", d.message);
+}
+
+#[test]
+fn story_validate_still_reports_the_missing_subject_to_the_gate() {
+    let p = Project::new();
+    let mut ctx = p.ctx();
+    let out = devforgeai::cmd::story::validate(&mut ctx, None, "active").expect("outcome");
+
+    // The `story_valid` check reads the diagnostics rather than the exit
+    // code, so it must still see an error-band entry and fail the check.
+    assert!(
+        out.warnings.iter().any(|d| !d.is_warning()),
+        "the gate's story_valid check still fails: {:?}",
+        out.warnings
+    );
+}

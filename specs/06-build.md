@@ -486,10 +486,10 @@ Seven subagents. Three are registered verifiers. None of the seven writes under 
 
 The entry point is the skill itself: `skills/implementing-stories/SKILL.md`, installed to `.claude/skills/build/`, whose frontmatter `name` is the slash command. There is no command file. This is the frontmatter and the preamble, verbatim, with four preamble lines.
 
-```markdown
+```
 ---
 name: build
-description: Phase 4 of DevForgeAI, run by /build. Takes one STORY-nnn that Plan marked ready and turns it into committed source and test files inside a git worktree of the project, test-first - one failing test per AC-nnn before the code that satisfies it, one commit per red and per green, a refactor pass opened by a CLI number, an integration pass for a story that carries an interface, and a fresh-context verifier that decides each criterion from the story, the diff and the test output alone. Reach for it whenever /build is typed, whenever a story is being implemented, whenever a red-green cycle, a declared file set, a story worktree, a build note, or a build report is in play, and whenever STORY-nnn-build.yaml, .devforgeai/build/STORY-nnn-note.yaml, a Build send-back to Plan, or a Verify remedy arriving as /build STORY-nnn --remedy FIND-nnn appears in a report or a handoff.
+description: Phase 4 of DevForgeAI, run by /build. Takes one STORY-nnn that Plan marked ready and turns it into committed source and test files inside a git worktree of the project, test-first - one failing test case per AC-nnn before the code that satisfies it, one commit per red and per green, a refactor pass opened by a CLI number, an integration pass for a story that carries an interface, and a fresh-context verifier that decides each criterion from the story, the diff and the test output alone. Reach for it whenever /build is typed, whenever a story is being implemented, whenever a red-green cycle, a declared file set, a story worktree, a build note, or a build report is in play, and whenever STORY-nnn-build.yaml, .devforgeai/build/STORY-nnn-note.yaml, a Build send-back to Plan, or a Verify remedy arriving as /build STORY-nnn --remedy FIND-nnn appears in a report or a handoff.
 argument-hint: STORY-nnn [--remedy FIND-nnn,...] [--resume]
 allowed-tools: Bash(devforgeai:*), PowerShell(devforgeai:*), Read, Write, Edit, Grep, Glob, Agent
 disable-model-invocation: true
@@ -500,7 +500,6 @@ disable-model-invocation: true
 !`devforgeai doc load context all`
 !`devforgeai doc load sprint -`
 ```
-
 The `gate require` line leads, so a failing predecessor gate aborts the invocation before any document loads.
 
 ## CLI calls

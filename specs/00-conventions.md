@@ -161,6 +161,8 @@ The upstream command re-opens only the cited IDs: `/<upstream> <ID> --remedy <ID
 | Design | `brand/tokens.json`, `ui-specs/UI-nnn.md` | JSON + MD | `UI-nnn`, `TOKEN-<name>` | Plan, Build | Discover |
 | Reflect | `reports/reflect-<date>.yaml` | YAML | `OBS-nnn`, `REC-nnn` | user | any (as recommendations, never as gates) |
 
+An id is *defined* by a document's frontmatter `id`, an id opening a Markdown heading, a list item opening `<PREFIX>-<nnn>:`, a YAML sequence item's `id:` key, or the id cell of a Markdown table row — which is how `## Core flows` defines its `FLOW-nnn` ids, since nothing else in the brief states them. Every other occurrence is a reference, and `PREFIX-000` is neither: it is the placeholder a template carries for an example entry (`ADR-000`, `STORY-000`), so it is never indexed and never reported unresolved. Real ids start at `001`.
+
 Every MD document has this frontmatter, in this order, no other keys at the top level:
 
 ```yaml

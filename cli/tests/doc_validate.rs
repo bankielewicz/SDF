@@ -351,3 +351,211 @@ fn producer_check_refuses_the_plan_document_from_verify() {
     let err = doc::validate(&mut ctx, &a, None).expect_err("Plan owns the story document");
     assert_eq!(err.code(), "DFA-E212");
 }
+
+// --- a table row is a definition site -------------------------------------
+
+/// A brief whose `## Core flows` table states three flows, as the framework's
+/// own template does, plus the `## Mockups` and `## Prototype` tables that
+/// cite them.
+fn brief_with_flow_table() -> String {
+    concat!(
+        "---\n",
+        "schema: devforgeai/explore-brief/1\n",
+        "id: IDEA-003\n",
+        "phase: explore\n",
+        "status: decided\n",
+        "produced_by: exploring-ideas\n",
+        "consumes: []\n",
+        "open_questions: []\n",
+        "---\n\n",
+        "# Order checkout\n\n",
+        "## Core flows\n\n",
+        "| ID | Actor | Trigger | Steps | Outcome |\n",
+        "|---|---|---|---|---|\n",
+        "| FLOW-001 | Shopper | Adds an item | open -> add | The cart holds it |\n",
+        "| FLOW-002 | Shopper | Pays | open -> pay | The order exists |\n",
+        "| FLOW-003 | Shopper | Returns | open -> view | The receipt renders |\n\n",
+        "## Mockups\n\n",
+        "| Flow | Screen | Path | State |\n",
+        "|---|---|---|---|\n",
+        "| FLOW-001 | FLOW-001-01 | .devforgeai/explore/mockups/FLOW-001-01.html | default |\n\n",
+        "## Prototype\n\n",
+        "| Field | Value |\n",
+        "|---|---|\n",
+        "| Flows covered | FLOW-001, FLOW-002 |\n",
+    )
+    .to_string()
+}
+
+#[test]
+fn a_table_row_defines_the_id_in_its_id_column() {
+    let p = Project::new();
+    p.write(".devforgeai/explore/brief.md", &brief_with_flow_table());
+
+    let index = devforgeai::doc::ids::build(p.root());
+
+    // The `## Core flows` table is the only place a flow is stated, so a row
+    // there is its definition site, the way a heading or a list item is.
+    for id in ["FLOW-001", "FLOW-002", "FLOW-003"] {
+        assert_eq!(
+            index.definitions.get(id).map(Vec::len),
+            Some(1),
+            "{id} is defined exactly once: {:?}",
+            index.definitions.get(id)
+        );
+    }
+}
+
+#[test]
+fn a_table_without_an_id_column_defines_nothing() {
+    let p = Project::new();
+    p.write(".devforgeai/explore/brief.md", &brief_with_flow_table());
+
+    let index = devforgeai::doc::ids::build(p.root());
+
+    // `## Mockups` also leads with a `FLOW-nnn`, and `## Prototype` cites two
+    // in a value cell. Reading either as a definition would make every flow a
+    // duplicate, so only a column headed `ID` defines.
+    assert_eq!(index.definitions.get("FLOW-001").map(Vec::len), Some(1));
+    assert!(
+        index.references.get("FLOW-001").map(Vec::len).unwrap_or(0) >= 2,
+        "the other two tables cite it: {:?}",
+        index.references.get("FLOW-001")
+    );
+}
+
+#[test]
+fn a_brief_from_the_template_validates() {
+    let p = Project::new();
+    p.write(".devforgeai/explore/brief.md", &brief_with_flow_table());
+
+    let mut ctx = p.ctx();
+    let args = devforgeai::cli::DocValidateArgs {
+        paths: vec![".devforgeai/explore/brief.md".into()],
+        all: false,
+        allocate: None,
+        producer_check: false,
+        stdin_content: false,
+    };
+    let out = devforgeai::cmd::doc::validate(&mut ctx, &args, None)
+        .expect("a brief written from the framework's own template validates");
+
+    // `DFA-E210` said the flows were referenced and defined nowhere; `DFA-W202`
+    // said the body cited an id the frontmatter did not consume.
+    assert_eq!(out.exit.unwrap_or(0), 0, "{:?}", out.warnings);
+    for code in ["DFA-E210", "DFA-W202"] {
+        assert!(
+            !out.warnings.iter().any(|d| d.code == code),
+            "{code}: {:?}",
+            out.warnings
+        );
+    }
+}
+
+#[test]
+fn allocate_flow_follows_the_table() {
+    let p = Project::new();
+    p.write(".devforgeai/explore/brief.md", &brief_with_flow_table());
+
+    let mut ctx = p.ctx();
+    let args = devforgeai::cli::DocValidateArgs {
+        paths: Vec::new(),
+        all: false,
+        allocate: Some("FLOW".to_string()),
+        producer_check: false,
+        stdin_content: false,
+    };
+    let out = devforgeai::cmd::doc::validate(&mut ctx, &args, None).expect("allocate");
+
+    // Handing back `FLOW-001` over a brief that already states it is how two
+    // flows end up sharing an id.
+    assert_eq!(out.data["id"], "FLOW-004");
+}
+
+#[test]
+fn the_handoff_counts_the_flows_the_table_states() {
+    let p = Project::new();
+    p.write(".devforgeai/explore/brief.md", &brief_with_flow_table());
+    p.set_phase("explore", "IDEA-003");
+
+    let mut ctx = p.ctx();
+    let out = devforgeai::cmd::handoff::run(&mut ctx, None, None).expect("handoff");
+
+    let done = out
+        .human
+        .iter()
+        .find(|l| l.starts_with("Done"))
+        .expect("the Done line");
+    assert!(
+        done.contains("3 flows"),
+        "the flows are counted from their definition sites: {done}"
+    );
+}
+
+// --- PREFIX-000 is a placeholder, not an id -------------------------------
+
+#[test]
+fn a_placeholder_id_is_neither_defined_nor_referenced() {
+    let p = Project::new();
+    // What the decision template leaves: a `carry_forward` note naming the ADR
+    // the project's own reason will one day become.
+    p.write(
+        ".devforgeai/explore/decision.yaml",
+        concat!(
+            "schema: devforgeai/explore-decision/1\n",
+            "id: IDEA-003\n",
+            "phase: explore\n",
+            "status: recorded\n",
+            "produced_by: exploring-ideas\n",
+            "consumes: []\n",
+            "open_questions: []\n",
+            "decision: promote\n",
+            "decided_on: 2026-09-11\n",
+            "reason: The scan found no product that reconciles a week in one screen.\n",
+            "revisit_on: null\n",
+            "elapsed_days: 2\n",
+            "remedied_flows: []\n",
+            "carry_forward:\n",
+            "  - path: .devforgeai/explore/decision.yaml\n",
+            "    sections: []\n",
+            "    becomes: ADR-000, the reason this project exists\n",
+            "    consumer: establishing-context\n",
+        ),
+    );
+
+    let index = devforgeai::doc::ids::build(p.root());
+    assert!(
+        !index.definitions.contains_key("ADR-000"),
+        "allocation starts at 001, so 000 can never be a subject"
+    );
+    assert!(
+        !index.references.contains_key("ADR-000"),
+        "and a placeholder resolves to nothing, so it is not a reference either"
+    );
+
+    let mut ctx = p.ctx();
+    let args = devforgeai::cli::DocValidateArgs {
+        paths: vec![".devforgeai/explore/decision.yaml".into()],
+        all: false,
+        allocate: None,
+        producer_check: false,
+        stdin_content: false,
+    };
+    let out = devforgeai::cmd::doc::validate(&mut ctx, &args, None)
+        .expect("a decision written from its own template validates");
+    assert_eq!(out.exit.unwrap_or(0), 0, "{:?}", out.warnings);
+    assert!(
+        !out.warnings.iter().any(|d| d.code == "DFA-E210"),
+        "{:?}",
+        out.warnings
+    );
+}
+
+#[test]
+fn a_placeholder_is_ignored_wherever_it_appears() {
+    assert!(devforgeai::doc::ids::is_placeholder("ADR-000"));
+    assert!(devforgeai::doc::ids::is_placeholder("STORY-000"));
+    assert!(!devforgeai::doc::ids::is_placeholder("ADR-001"));
+    assert!(!devforgeai::doc::ids::is_placeholder("STORY-010"));
+    assert!(!devforgeai::doc::ids::is_placeholder("not-an-id"));
+}

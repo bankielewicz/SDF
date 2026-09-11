@@ -87,7 +87,7 @@ devforgeai init --from C:\Projects\DevForgeAI
 ```
 $ devforgeai init --from 'C:\Projects\DevForgeAI'
 Initialised .devforgeai/ in C:\Users\bryan\AppData\Local\Temp\...\demo
-Copied     102 skills, 46 agents
+Copied     9 skills (102 files), 46 agents
 Commands   /build, /constitute, /design, /discover, /explore, /plan, /reflect, /release, /verify
 Hooks      .claude/settings.json merged; git hooks pre-commit, commit-msg, pre-push
 CLAUDE.md  devforgeai section written
@@ -179,7 +179,7 @@ $ echo '{"source":"startup"}' | devforgeai hook run session-start
 degraded: true
 Stack undetected; command checks skipped.
 Phase     0 · Explore         IDEA-001 · nightly-bank-reconciliat
-Done      1 ideas · 0 flows
+Done      1 ideas · 2 flows
 Gate      PASS  12 checks
 Verified  kill-case-builder · 3/3 objections
 
@@ -354,14 +354,14 @@ Stack undetected; command checks skipped.
 The Stop hook prints one JSON object and nothing else:
 
 ```json
-{"systemMessage":"Phase     0 · Explore         IDEA-001 · nightly-bank-reconciliat\nDone      1 ideas · 0 flows\nGate      PASS  12 checks\nVerified  kill-case-builder · 3/3 objections\n\nNext      /discover IDEA-001\nThen      /constitute IDEA-001\nBlocked   none\n\nFull report: .devforgeai/reports/IDEA-001-explore.yaml"}
+{"systemMessage":"Phase     0 · Explore         IDEA-001 · nightly-bank-reconciliat\nDone      1 ideas · 2 flows\nGate      PASS  12 checks\nVerified  kill-case-builder · 3/3 objections\n\nNext      /discover IDEA-001\nThen      /constitute IDEA-001\nBlocked   none\n\nFull report: .devforgeai/reports/IDEA-001-explore.yaml"}
 ```
 
 **reproduced**, exit 0. Claude Code renders the `systemMessage` to you as the block:
 
 ```
 Phase     0 · Explore         IDEA-001 · nightly-bank-reconciliat
-Done      1 ideas · 0 flows
+Done      1 ideas · 2 flows
 Gate      PASS  12 checks
 Verified  kill-case-builder · 3/3 objections
 
@@ -925,7 +925,7 @@ The scan is the enforcing half of the shell-write guard: whatever wrote the file
 **Case A — PASS.** Exit 0, one key:
 
 ```json
-{"systemMessage":"Phase     0 · Explore         IDEA-001 · nightly-bank-reconciliat\nDone      1 ideas · 0 flows\nGate      PASS  12 checks\n..."}
+{"systemMessage":"Phase     0 · Explore         IDEA-001 · nightly-bank-reconciliat\nDone      1 ideas · 2 flows\nGate      PASS  12 checks\n..."}
 ```
 
 **Case B — FAIL, inside the block budget.** Exit 2, one object carrying both keys. `reason` is addressed to Claude and names the checks; `systemMessage` is addressed to you and is the handoff block:
@@ -960,7 +960,7 @@ read from `cli/src/hooks/run.rs`. The `reason` reaches the subagent as its next 
 ```
 $ devforgeai init --analyze --from 'C:\Projects\DevForgeAI'
 Initialised .devforgeai/ in C:\Users\bryan\AppData\Local\Temp\...\brown
-Copied     102 skills, 46 agents
+Copied     9 skills (102 files), 46 agents
 Commands   /build, /constitute, /design, /discover, /explore, /plan, /reflect, /release, /verify
 Hooks      .claude/settings.json merged; git hooks pre-commit, commit-msg, pre-push
 CLAUDE.md  devforgeai section written
@@ -1426,7 +1426,7 @@ Global options on every subcommand: `--json` (one machine envelope on stdout, no
 | `devforgeai doc accept requirements --id <IDEA-nnn>` | Discover step 14 |
 | `devforgeai doc reopen requirements --id <IDEA-nnn> --ids <ID,ID> --from <phase>` | Discover step C2 |
 | `devforgeai phase set <phase> --id <id> [--remedy <ID,ID>] [--epic <EPIC-nnn>]` | every phase; refuses unless `gate require` would pass |
-| `devforgeai story validate [<id>] [--scope active\|sprint\|all]` | the Plan gate's `plan-stories` check |
+| `devforgeai story validate [<id>] [--scope active\|sprint\|all]` | the Plan gate's `plan-stories` check. With no active id for the phase it reports `DFA-E412` and exits non-zero, so a run that never set its phase is a visible failure rather than a silent pass |
 | `devforgeai story files [--check <path>] [--list] [--diff] [--id <id>] [--base <ref>]` | `PreToolUse` during Build, and Build steps 9 and 11 |
 | `devforgeai worktree ensure <id>` | Build step 4 |
 | `devforgeai commit <id> -m <message> [--paths <p,p>]` | Build steps 7.3, 7.6, 7.8, 8, 10 |

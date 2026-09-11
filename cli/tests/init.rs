@@ -275,7 +275,7 @@ fn init_json_envelope_lists_counts() {
     assert!(
         out.human
             .iter()
-            .any(|l| l == "Copied     2 skills, 3 agents"),
+            .any(|l| l == "Copied     2 skills (2 files), 3 agents"),
         "the human block reports the counts: {:?}",
         out.human
     );
@@ -797,4 +797,25 @@ fn init_falls_back_to_the_directory_name_when_the_frontmatter_has_none() {
     run(&p, &args(&f));
 
     assert!(p.exists(".claude/skills/no-name/SKILL.md"));
+}
+
+#[test]
+fn the_copied_line_counts_skills_and_files_separately() {
+    let f = Framework::new();
+    // A skill made of several files, so the two counts differ.
+    f.write("skills/planning-work/references/estimating.md", "# How\n");
+    f.write("skills/planning-work/templates/story.md", "# Story\n");
+    let p = rust_project();
+
+    let out = run(&p, &args(&f));
+
+    // `Copied 102 skills` counted files, and a reader takes that for the
+    // number of skills rather than the number of files nine skills are made
+    // of. The count that means something is how many were installed.
+    let line = out
+        .human
+        .iter()
+        .find(|l| l.starts_with("Copied"))
+        .expect("the Copied line");
+    assert_eq!(line, "Copied     2 skills (4 files), 3 agents", "{line}");
 }

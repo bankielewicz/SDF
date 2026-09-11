@@ -175,8 +175,13 @@ pub fn run(project_flag: Option<&Path>, args: &InitArgs) -> Result<Outcome, CliE
     };
 
     let mut human = vec![format!("Initialised .devforgeai/ in {}", root.display())];
+    // `copied` counts files, and a reader takes `102 skills` for the number of
+    // skills rather than the number of files nine skills are made of. The
+    // count that means something is how many were installed; the file count
+    // stays beside it because a copy that moved nothing is worth seeing.
     human.push(format!(
-        "Copied     {} skills, {} agents",
+        "Copied     {} skills ({} files), {} agents",
+        skill_names.len(),
         copied.get("skills").and_then(|v| v.as_u64()).unwrap_or(0),
         copied.get("agents").and_then(|v| v.as_u64()).unwrap_or(0),
     ));

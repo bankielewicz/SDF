@@ -105,7 +105,7 @@ A clean brief, where the run continues at step 5:
 ```
 </example>
 
-`total` is `payload.flows_checked`, `passed` is `payload.flows_clean` — the count of rows appearing in neither array — and `unit` is `flows`. `findings` is `[]`: this phase allocates no finding ids, and the flow ids travel in `payload.actorless` and `payload.contradictions`. Every entry of both arrays carries `confidence`, a float from `0.0` to `1.0` for how far the reading carries, so an uncertain row is reported with its uncertainty rather than dropped. The ingest writes the object under `verifiers.flow_integrity` of `.devforgeai/reports/IDEA-nnn-discover.yaml`, where the handoff `Verified` line reads it. The discover gate names no `verifier_pass` check, which is the condition `config.toml` attaches to `required = false`, so the block feeds that line and nothing else. The registry entry that names this agent lives in `.devforgeai/config.toml`:
+`total` is `payload.flows_checked`, `passed` is `payload.flows_clean` — the count of rows appearing in neither array — and `unit` is `flows`. `findings` is `[]`: this phase allocates no finding ids, and the flow ids travel in `payload.actorless` and `payload.contradictions`. Every entry of both arrays carries `confidence`, a float from `0.0` to `1.0` for how far the reading carries, so an uncertain row is reported with its uncertainty rather than dropped. The ingest writes the object under `verifiers.flow_integrity` of `.devforgeai/reports/IDEA-nnn-discover.yaml`, where the handoff `Verified` line reads it. The discover gate carries a `verifier_pass` check naming this agent, at `min_ratio = 1.0` with `on_fail = "send_back"` routing to Explore, which is the condition `config.toml` attaches to `required = true`. One row in `payload.actorless` or `payload.contradictions` leaves `passed` below `total` and returns the idea to Explore citing the `FLOW-nnn` ids those arrays carry; a brief whose every row is clean reports `passed` equal to `total` and the run continues. Since `findings` is `[]` on every run, the ratio is the whole of what the gate reads, so a row left out of either array is a defect the gate cannot see. The registry entry that names this agent lives in `.devforgeai/config.toml`:
 
 ```toml
 [[verifier]]
@@ -113,7 +113,7 @@ name = "flow-integrity-auditor"
 phase = "discover"
 report_field = "verifiers.flow_integrity"
 unit = "flows"
-required = false
+required = true
 ```
 
 ## Workflow

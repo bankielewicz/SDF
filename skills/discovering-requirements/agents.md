@@ -30,12 +30,14 @@ Each of the four returns one JSON object and writes no file. The skill writes `.
 
 | Agent | phase | report_field | unit | required |
 |---|---|---|---|---|
-| `flow-integrity-auditor` | discover | `verifiers.flow_integrity` | flows | false |
+| `flow-integrity-auditor` | discover | `verifiers.flow_integrity` | flows | true |
 
 The SubagentStop hook runs `devforgeai report ingest <name> -` for each row above.
 A name absent from `config.toml` `[[verifier]]` is a no-op with exit 0 and `DFA-W411`.
 
-The other three return run-local JSON the skill consumes, so SubagentStop ignores them. `required` is `false` because the discover gate carries four check kinds and `verifier_pass` is not among them; the block lands at `verifiers.flow_integrity` of `.devforgeai/reports/IDEA-nnn-discover.yaml`, where the handoff `Verified` line reads `payload.flows_clean`/`payload.flows_checked` in `flows`, and Reflect reads it afterwards.
+The other three return run-local JSON the skill consumes, so SubagentStop ignores them. `required` is `true` because the discover gate carries a `verifier_pass` check naming this agent, at `min_ratio = 1.0` with `on_fail = "send_back"` routing to Explore. The block lands at `verifiers.flow_integrity` of `.devforgeai/reports/IDEA-nnn-discover.yaml`, where the handoff `Verified` line reads `payload.flows_clean`/`payload.flows_checked` in `flows`, and Reflect reads it afterwards.
+
+At that floor the ratio is the send-back: one row in `payload.actorless` or `payload.contradictions` leaves `passed` below `total`, the check fails, and the idea returns to Explore citing the `FLOW-nnn` ids those two arrays carry. A brief whose every row is clean reports `passed` equal to `total` and the run continues at step 5. The arithmetic is the whole gate here, because this agent allocates no finding ids and `findings` is `[]` on every run: there is no severity for the check to read, so an unreported row is a row the gate cannot see.
 
 `flow-integrity-auditor` prints exactly one JSON object on stdout: the `devforgeai/verifier/1` envelope, whose keys are `schema` (the constant `devforgeai/verifier/1`), `subagent`, `id`, `passed`, `total`, `unit`, `findings[]` of `id`, `severity` from the closed enum `block | warn | info`, `summary` and `evidence`, and `payload`, which holds every top-level field the agent adds of its own. Here `findings` is `[]` — this phase allocates no finding ids — and `payload` carries `flows_checked`, `flows_clean`, `actorless`, and `contradictions`, with a `confidence` from `0.0` to `1.0` on every entry of the last two. `total` is `payload.flows_checked` and `passed` is `payload.flows_clean`. Anything other than one object of that shape is `DFA-E410`, which writes the block at `status: unparsed`.
 
