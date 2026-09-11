@@ -91,7 +91,10 @@ fn load_value(ctx: &Ctx, rel: &str) -> Result<(PathBuf, Value), CliError> {
                 rel.to_string(),
             )
         })?,
-        doc::frontmatter::Source::Json => {
+        // `source_for` keys off the extension, so it never yields `JsonMeta`;
+        // the variant distinguishes two row shapes, and both are read the same
+        // way here, as the whole document.
+        doc::frontmatter::Source::Json | doc::frontmatter::Source::JsonMeta => {
             let j: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
                 CliError::at(
                     "DFA-E401",

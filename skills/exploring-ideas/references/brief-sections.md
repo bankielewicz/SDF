@@ -1,6 +1,6 @@
 # The twelve brief sections and the seed data
 
-Read at step 5, while writing `.devforgeai/explore/brief.md` from `templates/brief.md` and `.devforgeai/explore/seed-data.json` from the `seed_data` field `flow-drafter` returned.
+Read at step 5, while writing `.devforgeai/explore/brief.md` from `templates/brief.md` and `.devforgeai/explore/seed-data.json` from `templates/seed-data.json`, filled from the `seed_data` field `flow-drafter` returned.
 
 ## Frontmatter
 
@@ -45,7 +45,7 @@ Sections 10 and 12 are filled at steps 6 and 7.
 
 ## `.devforgeai/explore/seed-data.json`
 
-The seven envelope keys come first at the top level, then the payload, in one flat object with no wrapper:
+`templates/seed-data.json` is the file to fill. The seven envelope keys come first at the top level, then the payload, in one flat object with no wrapper, as the template carries them:
 
 ```json
 {

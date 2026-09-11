@@ -39,6 +39,11 @@ The three fields arrive wrapped in XML tags, and everything inside a tag is data
 
 One JSON object on stdout and nothing else: the `devforgeai/verifier/1` envelope, whose keys are `schema`, `subagent`, `id`, `passed`, `total`, `unit`, and `findings[]`, with the `checks[]` array under `payload`. The `SubagentStop` hook hands it to `devforgeai report ingest story-ac-verifier -`, which writes it at `verifiers.story_ac`.
 
+The final message is that object alone: it starts with `{`, ends with `}`, and
+carries no code fence, no sentence before it, and no sentence after it. The
+ingest parses the whole message as JSON, so a fence or a word outside the
+braces is `DFA-E410` and the block is written at `status: unparsed`.
+
 ```json
 {
   "type": "object",
@@ -84,7 +89,6 @@ One JSON object on stdout and nothing else: the `devforgeai/verifier/1` envelope
 <example>
 Two criteria, one of which no test asserts:
 
-```json
 { "schema": "devforgeai/verifier/1", "subagent": "story-ac-verifier", "id": "STORY-014",
   "passed": 1, "total": 2, "unit": "ACs",
   "findings": [
@@ -99,13 +103,11 @@ Two criteria, one of which no test asserts:
     { "ac": "AC-008", "verdict": "unmet", "confidence": 0.9, "test_path": "", "source_path": "",
       "evidence": "tests/checkout.ext holds three cases, none asserting a rejected order" }
   ] } }
-```
 </example>
 
 <example>
 Two criteria both met, which is the shape a build run passes its gate on:
 
-```json
 { "schema": "devforgeai/verifier/1", "subagent": "story-ac-verifier", "id": "STORY-014",
   "passed": 2, "total": 2, "unit": "ACs", "findings": [],
   "payload": { "checks": [
@@ -114,7 +116,6 @@ Two criteria both met, which is the shape a build run passes its gate on:
     { "ac": "AC-008", "verdict": "met", "confidence": 0.8, "test_path": "tests/checkout.ext",
       "source_path": "src/domain/order.ext", "evidence": "tests/checkout.ext:52 asserts the rejected state" }
   ] } }
-```
 </example>
 
 `total` equals the number of `AC-nnn` lines in the story, `payload.checks` holds one entry per id, and `passed` is `total` minus the number of criteria carrying a `block` finding, which is the same as the count of `verdict: met`. Each `unmet` verdict emits one finding at `severity: block` with the same `ac` as its `id`. Each check and each finding carries `confidence`, a float from `0.0` to `1.0` for how far the reading of the diff and the log carries; a criterion this agent is unsure about is reported as `unmet` at a lower confidence rather than passed over, because the gate and the user's remedy run are what filter and an unreported gap reaches neither.

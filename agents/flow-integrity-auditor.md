@@ -25,6 +25,11 @@ The prompt carries these fields and no others.
 
 One JSON object on stdout and nothing else: the `devforgeai/verifier/1` envelope. The object below is the whole contract, and the four fields of the audit sit under `payload`. One schema, one object:
 
+The final message is that object alone: it starts with `{`, ends with `}`, and
+carries no code fence, no sentence before it, and no sentence after it. The
+ingest parses the whole message as JSON, so a fence or a word outside the
+braces is `DFA-E410` and the block is written at `status: unparsed`.
+
 ```json
 { "type": "object",
   "required": ["schema","subagent","id","passed","total","unit","findings","payload"],
@@ -63,7 +68,6 @@ One JSON object on stdout and nothing else: the `devforgeai/verifier/1` envelope
 <example>
 A brief with one actorless row and one contradicting pair:
 
-```json
 {
   "schema": "devforgeai/verifier/1",
   "subagent": "flow-integrity-auditor",
@@ -85,13 +89,11 @@ A brief with one actorless row and one contradicting pair:
     ]
   }
 }
-```
 </example>
 
 <example>
 A clean brief, where the run continues at step 5:
 
-```json
 {
   "schema": "devforgeai/verifier/1",
   "subagent": "flow-integrity-auditor",
@@ -102,7 +104,6 @@ A clean brief, where the run continues at step 5:
   "findings": [],
   "payload": { "flows_checked": 9, "flows_clean": 9, "actorless": [], "contradictions": [] }
 }
-```
 </example>
 
 `total` is `payload.flows_checked`, `passed` is `payload.flows_clean` — the count of rows appearing in neither array — and `unit` is `flows`. `findings` is `[]`: this phase allocates no finding ids, and the flow ids travel in `payload.actorless` and `payload.contradictions`. Every entry of both arrays carries `confidence`, a float from `0.0` to `1.0` for how far the reading carries, so an uncertain row is reported with its uncertainty rather than dropped. The ingest writes the object under `verifiers.flow_integrity` of `.devforgeai/reports/IDEA-nnn-discover.yaml`, where the handoff `Verified` line reads it. The discover gate carries a `verifier_pass` check naming this agent, at `min_ratio = 1.0` with `on_fail = "send_back"` routing to Explore, which is the condition `config.toml` attaches to `required = true`. One row in `payload.actorless` or `payload.contradictions` leaves `passed` below `total` and returns the idea to Explore citing the `FLOW-nnn` ids those arrays carry; a brief whose every row is clean reports `passed` equal to `total` and the run continues. Since `findings` is `[]` on every run, the ratio is the whole of what the gate reads, so a row left out of either array is a defect the gate cannot see. The registry entry that names this agent lives in `.devforgeai/config.toml`:

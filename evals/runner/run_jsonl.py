@@ -23,7 +23,13 @@ What the child sees (AUDIT-5 EVL-010 to EVL-014, EVL-051):
   the transcript a grader sees carries tool calls, tool inputs and tool results
   and not only the final ``result`` string;
 * the raw streams are written to a log directory beside the workspaces, never
-  inside one, so no grader's tree walk counts them as a write;
+  inside one, so no grader's tree walk counts them as a write, and stdout is
+  written line by line as it arrives, so a case killed at its timeout still
+  carries the evidence of where it reached;
+* a seeded ``config.toml`` is completed from the one ``init`` writes, table by
+  table — a stated table replaces the default's, except ``[[verifier]]``, which
+  merges by ``name``, so every workspace carries the full twenty-name catalogue
+  the gates read while a fixture can still change one row;
 * ``config.toml`` is put into the binary's canonical form before the run, so the
   SessionStart ``stack detect`` changes nothing the tamper guard can see;
 * every skill the skill under test reaches through the Skill tool is installed
@@ -706,6 +712,123 @@ def install_skill(source, claude_dir, root):
     return name
 
 
+# The top-level tables of `config.toml`, in the order `init` writes them. A
+# seeded fixture states the few its case is about; the rest come from the
+# default, because the gate reads all of them.
+CONFIG_TABLES = ("stack", "frontend", "layer", "explore", "plan", "build",
+                 "verify", "release", "reflect", "coverage", "verifier")
+
+# A top-level table header and nothing else: `[stack.env]` is a subtable and
+# belongs to the `[[stack]]` above it, so the closing bracket has to follow the
+# name immediately or the block would be split from its parent.
+_TABLE_HEADER = re.compile(
+    r"^(?:\[\[([a-z_][a-z0-9_]*)\]\]|\[([a-z_][a-z0-9_]*)\])\s*$")
+
+
+def split_config_tables(text):
+    """``(preamble, {table: [block, ...]})`` for one config file.
+
+    A block is the header line and everything to the next top-level header, so
+    `[stack.env]` travels with the `[[stack]]` it belongs to. The preamble is
+    the key-value head — `schema`, `generated_at`, `cli_version`, `degraded`.
+    """
+    lines = text.split("\n")
+    starts = [i for i, line in enumerate(lines) if _TABLE_HEADER.match(line)]
+    if not starts:
+        return text, {}
+    preamble = "\n".join(lines[:starts[0]])
+    blocks = {}
+    for index, start in enumerate(starts):
+        end = starts[index + 1] if index + 1 < len(starts) else len(lines)
+        found = _TABLE_HEADER.match(lines[start])
+        name = found.group(1) or found.group(2)
+        blocks.setdefault(name, []).append("\n".join(lines[start:end]).rstrip())
+    return preamble, blocks
+
+
+_NAME_KEY = re.compile(r"""^\s*name\s*=\s*["']([^"']+)["']""", re.M)
+
+
+def _block_name(block):
+    """The ``name`` key of one ``[[verifier]]`` block, or ``""``."""
+    found = _NAME_KEY.search(block)
+    return found.group(1) if found else ""
+
+
+def merge_verifiers(seeded, default):
+    """The default registry with the fixture's rows overriding by ``name``.
+
+    ``[[verifier]]`` is the one table that merges rather than replaces. It is a
+    catalogue rather than a choice: `gate check` fails `DFA-E316` on a phase
+    whose verifier the file does not register, so a fixture stating the three
+    rows its own phase invokes would hide the other seventeen from every other
+    phase — which is how the Explore gate came to fail and the model came to
+    edit `config.toml`. A seeded row replaces the default row of the same name
+    field for field, so a case can still change one row's `required`; a default
+    row the fixture does not name is kept; a seeded row naming nothing in the
+    default is appended.
+    """
+    if not seeded:
+        return list(default)
+    overrides = {}
+    extras = []
+    for block in seeded:
+        name = _block_name(block)
+        if name:
+            overrides[name] = block
+        else:
+            extras.append(block)
+    out = []
+    for block in default:
+        name = _block_name(block)
+        out.append(overrides.pop(name, block) if name else block)
+    for block in seeded:
+        name = _block_name(block)
+        if name and name in overrides:
+            out.append(overrides.pop(name))
+    return out + extras
+
+
+def merge_config(seeded, default):
+    """A seeded config completed from the default, one top-level table at a time.
+
+    A case states the tables it is about and inherits the rest. `init` writes a
+    twenty-row `[[verifier]]` registry, and a fixture that omits it made the
+    Explore gate fail `DFA-E316 config.toml registers no [[verifier]] named
+    'kill-case-builder'` — after which the model edited `config.toml` to add the
+    registry and the tamper guard flagged it, correctly. A table the fixture
+    does state replaces the default's outright, so a seeded `[[stack]]` is the
+    only stack and a seeded `[build]` is the only build table — with one
+    exception, `[[verifier]]`, which merges by name because it is a
+    catalogue every phase reads rather than a choice this case makes.
+    See `merge_verifiers`.
+    """
+    if not default:
+        return seeded
+    preamble, seeded_blocks = split_config_tables(seeded)
+    default_preamble, default_blocks = split_config_tables(default)
+    if not seeded_blocks and not default_blocks:
+        return seeded
+    head = preamble.strip() or default_preamble.strip()
+    out = [head] if head else []
+    for name in CONFIG_TABLES:
+        if name == "verifier":
+            blocks = merge_verifiers(seeded_blocks.get(name) or [],
+                                     default_blocks.get(name) or [])
+        else:
+            blocks = seeded_blocks.get(name) or default_blocks.get(name) or []
+        for block in blocks:
+            out.append(block)
+    # Any table neither list names, kept so a future key is not dropped.
+    for name in list(seeded_blocks) + list(default_blocks):
+        if name in CONFIG_TABLES:
+            continue
+        for block in seeded_blocks.get(name) or default_blocks.get(name) or []:
+            if block not in out:
+                out.append(block)
+    return "\n\n".join(part.strip("\n") for part in out if part.strip()) + "\n"
+
+
 def make_workspace(case, files, options):
     """Build one workspace and return (path, environment home)."""
     skill_dir = options.skill
@@ -731,9 +854,15 @@ def make_workspace(case, files, options):
     defaults = cli_defaults(options.devforgeai_bin, options.framework_root)
     for name in DEFAULT_FILES:
         relative = ".devforgeai/" + name
-        if relative in files or name not in defaults:
+        if name not in defaults:
             continue
-        _write_text(os.path.join(workspace, ".devforgeai", name), defaults[name])
+        if relative not in files:
+            _write_text(os.path.join(workspace, ".devforgeai", name), defaults[name])
+        elif name == "config.toml":
+            # Completed rather than replaced: the case keeps the tables it
+            # states and inherits every other, the verifier registry included.
+            _write_text(os.path.join(workspace, ".devforgeai", name),
+                        merge_config(files[relative], defaults[name]))
 
     claude_dir = os.path.join(workspace, ".claude")
     # The destination directory is the frontmatter `name:`, because that is the
@@ -1050,6 +1179,67 @@ def child_environment(home, devforgeai_bin, claude_config="isolate"):
     return environment
 
 
+def run_streaming(argv, workspace, environment, prompt, timeout, stdout_path):
+    """Spawn the child and write its stdout to ``stdout_path`` as it arrives.
+
+    ``subprocess.run`` buffers both streams and returns them at the end, so a
+    case killed at its timeout left no log at all and no evidence of where it
+    had reached — BLD-01 at 1500s produced an empty directory. Reading the pipe
+    line by line on a thread and flushing each line means a kill preserves
+    everything that ran.
+
+    Returns ``(stdout, stderr, returncode)``; ``returncode`` is ``None`` when the
+    timeout struck, and the partial stdout is returned and already on disk.
+    """
+    captured = []
+
+    def pump(stream, sink, handle):
+        for line in iter(stream.readline, ""):
+            sink.append(line)
+            if handle is not None:
+                handle.write(line)
+                handle.flush()
+        stream.close()
+
+    errors = []
+    if stdout_path:
+        os.makedirs(os.path.dirname(stdout_path), exist_ok=True)
+    handle = (open(stdout_path, "w", encoding="utf-8", newline="\n")
+              if stdout_path else None)
+    try:
+        child = subprocess.Popen(
+            argv, cwd=workspace, env=environment, stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            encoding="utf-8", errors="replace", bufsize=1)
+    except OSError:
+        if handle is not None:
+            handle.close()
+        raise
+    readers = [threading.Thread(target=pump, args=(child.stdout, captured, handle)),
+               threading.Thread(target=pump, args=(child.stderr, errors, None))]
+    for reader in readers:
+        reader.daemon = True
+        reader.start()
+    try:
+        try:
+            child.stdin.write(prompt)
+        finally:
+            child.stdin.close()
+    except OSError:
+        pass
+    try:
+        code = child.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        child.kill()
+        child.wait()
+        code = None
+    for reader in readers:
+        reader.join(timeout=30)
+    if handle is not None:
+        handle.close()
+    return "".join(captured), "".join(errors), code
+
+
 def invoke(argv, workspace, home, timeout, prompt, options, log_dir, case_id):
     """Run claude in the workspace. Returns (status, transcript, exit, meta)."""
     environment = child_environment(home, options.devforgeai_bin,
@@ -1057,31 +1247,28 @@ def invoke(argv, workspace, home, timeout, prompt, options, log_dir, case_id):
     # PATH lookup here rather than in the spawn, so a .cmd shim on Windows
     # resolves the same way a bare name does on a shell.
     argv = [shutil.which(argv[0]) or argv[0]] + argv[1:]
+    # EVL-002: the raw streams land beside the workspaces, never inside one, so
+    # no grader's tree walk counts them as a write. stdout is written as it
+    # arrives, so a case killed at its timeout still says where it reached.
+    stdout_path = os.path.join(log_dir, case_id + ".stdout.txt") if log_dir else ""
     try:
-        finished = subprocess.run(
-            argv, cwd=workspace, env=environment, input=prompt,
-            capture_output=True, timeout=timeout, text=True,
-            encoding="utf-8", errors="replace")
-    except subprocess.TimeoutExpired:
-        return "timeout", "", None, {}
+        out, err, code = run_streaming(argv, workspace, environment, prompt,
+                                       timeout, stdout_path)
     except OSError as exc:
         raise CaseError("claude did not start: %s" % exc)
-    # EVL-002: the raw streams land beside the workspaces, never inside one, so
-    # no grader's tree walk counts them as a write.
     if log_dir:
         try:
-            _write_text(os.path.join(log_dir, case_id + ".stdout.txt"),
-                        finished.stdout or "")
-            _write_text(os.path.join(log_dir, case_id + ".stderr.txt"),
-                        finished.stderr or "")
+            _write_text(os.path.join(log_dir, case_id + ".stderr.txt"), err or "")
         except OSError:
             pass
-    transcript, meta = read_stream(finished.stdout or "")
+    if code is None:
+        return "timeout", "", None, {}
+    transcript, meta = read_stream(out or "")
     if meta.get("is_error") and LIMIT_RE.search(meta.get("result_text") or ""):
-        return "limit", transcript, finished.returncode, meta
-    if finished.returncode != 0 or meta.get("is_error"):   # EVL-016
-        return "error", transcript, finished.returncode, meta
-    return "ran", transcript, finished.returncode, meta
+        return "limit", transcript, code, meta
+    if code != 0 or meta.get("is_error"):   # EVL-016
+        return "error", transcript, code, meta
+    return "ran", transcript, code, meta
 
 
 # ---------------------------------------------------------------------------

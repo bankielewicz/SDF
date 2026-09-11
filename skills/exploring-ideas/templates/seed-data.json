@@ -1,0 +1,13 @@
+{
+  "schema": "devforgeai/explore-seed-data/1",
+  "id": "IDEA-nnn",
+  "phase": "explore",
+  "status": "recorded",
+  "produced_by": "exploring-ideas",
+  "consumes": [],
+  "open_questions": [],
+  "entities": [
+    { "name": "<entity name>", "fields": ["<field-1>", "<field-2>"],
+      "rows": [ { "<field-1>": "<value>", "<field-2>": "<value>" } ] }
+  ]
+}

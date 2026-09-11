@@ -28,10 +28,14 @@ The prompt carries these fields and no others.
 
 One JSON object on stdout and nothing else: the `devforgeai/verifier/1` envelope. The object below is the whole contract, and this agent's own top-level fields sit under `payload`. The `SubagentStop` hook hands it to `devforgeai report ingest architecture-reviewer -`, which files it under `verifiers.architecture_reviewer` of `.devforgeai/reports/IDEA-nnn-constitute.yaml` and appends the entries to the report's `findings` list, which is where the handoff `Found` lines come from.
 
+The final message is that object alone: it starts with `{`, ends with `}`, and
+carries no code fence, no sentence before it, and no sentence after it. The
+ingest parses the whole message as JSON, so a fence or a word outside the
+braces is `DFA-E410` and the block is written at `status: unparsed`.
+
 <example>
 A requirement set carrying one infeasible requirement:
 
-```json
 {
   "schema": "devforgeai/verifier/1",
   "subagent": "architecture-reviewer",
@@ -55,13 +59,11 @@ A requirement set carrying one infeasible requirement:
     "blocking_findings": 1
   }
 }
-```
 </example>
 
 <example>
 A requirement set carrying one unmotivated decision, which does not lower `passed`:
 
-```json
 {
   "schema": "devforgeai/verifier/1",
   "subagent": "architecture-reviewer",
@@ -85,13 +87,11 @@ A requirement set carrying one unmotivated decision, which does not lower `passe
     "blocking_findings": 0
   }
 }
-```
 </example>
 
 <example>
 A requirement set the constraint set carries, which is the answer that upholds a scoped constraint on the remedy path:
 
-```json
 {
   "schema": "devforgeai/verifier/1",
   "subagent": "architecture-reviewer",
@@ -106,7 +106,6 @@ A requirement set the constraint set carries, which is the answer that upholds a
     "blocking_findings": 0
   }
 }
-```
 </example>
 
 Each `findings` entry carries the contract four — `id`, `severity` from the closed enum `block | warn | info`, `summary`, `evidence` — plus `confidence`, a float from `0.0` to `1.0` for how far the reading carries, and this phase's own `kind`, `requirements`, `constraints`, `adrs`, and `statement`, which `report ingest` copies through unread. `id` is the first entry of that finding's `requirements`, or its first `constraints` entry when `requirements` is empty, or its first `adrs` entry when both are.

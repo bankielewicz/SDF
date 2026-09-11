@@ -27,10 +27,14 @@ The prompt carries these fields and no others.
 
 One JSON object on stdout and nothing else: the `devforgeai/verifier/1` envelope. The object below is the whole contract, and this agent's own top-level fields sit under `payload`. The `SubagentStop` hook hands it to `devforgeai report ingest alignment-auditor -`, which files it under `verifiers.alignment_auditor` of `.devforgeai/reports/IDEA-nnn-constitute.yaml`.
 
+The final message is that object alone: it starts with `{`, ends with `}`, and
+carries no code fence, no sentence before it, and no sentence after it. The
+ingest parses the whole message as JSON, so a fence or a word outside the
+braces is `DFA-E410` and the block is written at `status: unparsed`.
+
 <example>
 A context set carrying one restated rule:
 
-```json
 {
   "schema": "devforgeai/verifier/1",
   "subagent": "alignment-auditor",
@@ -50,13 +54,11 @@ A context set carrying one restated rule:
   ],
   "payload": { "checks_run": 31, "blocking_findings": 0 }
 }
-```
 </example>
 
 <example>
 A context set carrying one contradiction over one pair, which is what lowers `passed`:
 
-```json
 {
   "schema": "devforgeai/verifier/1",
   "subagent": "alignment-auditor",
@@ -76,13 +78,11 @@ A context set carrying one contradiction over one pair, which is what lowers `pa
   ],
   "payload": { "checks_run": 31, "blocking_findings": 1 }
 }
-```
 </example>
 
 <example>
 A context set on which every pair read agrees:
 
-```json
 {
   "schema": "devforgeai/verifier/1",
   "subagent": "alignment-auditor",
@@ -93,7 +93,6 @@ A context set on which every pair read agrees:
   "findings": [],
   "payload": { "checks_run": 31, "blocking_findings": 0 }
 }
-```
 </example>
 
 Each `findings` entry carries the contract four — `id`, `severity` from the closed enum `block | warn | info`, `summary`, `evidence` — plus `confidence`, a float from `0.0` to `1.0` for how far the reading carries, and this phase's own `kind`, `left`, `right`, `ids`, and `resolution`, which `report ingest` copies through unread. `id` is the first entry of that finding's `ids`, or the `kind` name when no id applies; `summary` is the `resolution` shortened to one clause; `evidence` is `left.file` and `left.line` joined by a colon.

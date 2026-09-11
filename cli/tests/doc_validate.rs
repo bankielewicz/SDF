@@ -559,3 +559,217 @@ fn a_placeholder_is_ignored_wherever_it_appears() {
     assert!(!devforgeai::doc::ids::is_placeholder("STORY-010"));
     assert!(!devforgeai::doc::ids::is_placeholder("not-an-id"));
 }
+
+// --- a document's own id is the pattern's business alone -------------------
+
+/// The QA report template, filled for one story.
+fn qa_report(id: &str) -> String {
+    format!(
+        concat!(
+            "schema: devforgeai/qa-report/1\n",
+            "id: {id}\n",
+            "phase: verify\n",
+            "status: pass\n",
+            "produced_by: validating-quality\n",
+            "consumes: []\n",
+            "open_questions: []\n",
+            "mode: light\n",
+            "verified_on: 2026-09-11\n",
+            "findings: []\n"
+        ),
+        id = id
+    )
+}
+
+#[test]
+fn a_qa_report_validates() {
+    let p = Project::new();
+    p.write(
+        ".devforgeai/reports/STORY-014-qa.yaml",
+        &qa_report("STORY-014"),
+    );
+
+    let mut ctx = p.ctx();
+    let a = DocValidateArgs {
+        paths: vec![".devforgeai/reports/STORY-014-qa.yaml".into()],
+        ..args()
+    };
+    let out = doc::validate(&mut ctx, &a, None).expect("the QA report validates");
+
+    // The row's `id_pattern` is `^STORY-[0-9]{3}$` and the id is `STORY-014`.
+    // The refusal came from re-testing the id against `row.prefixes`, which is
+    // the list of prefixes the document may *define* — `FIND` for a QA report.
+    assert_eq!(out.exit.unwrap_or(0), 0, "{:?}", out.warnings);
+    assert!(
+        !out.warnings.iter().any(|d| d.code == "DFA-E209"),
+        "{:?}",
+        out.warnings
+    );
+}
+
+#[test]
+fn a_qa_report_with_a_wrong_id_is_still_refused() {
+    let p = Project::new();
+    // The filename says STORY-014 and the frontmatter says otherwise.
+    p.write(
+        ".devforgeai/reports/STORY-014-qa.yaml",
+        &qa_report("IDEA-003"),
+    );
+
+    let mut ctx = p.ctx();
+    let a = DocValidateArgs {
+        paths: vec![".devforgeai/reports/STORY-014-qa.yaml".into()],
+        ..args()
+    };
+    let out = doc::validate(&mut ctx, &a, None).expect("outcome");
+    assert_ne!(out.exit.unwrap_or(0), 0, "the pattern still rules");
+    assert!(out.warnings.iter().any(|d| d.code == "DFA-E209"));
+}
+
+#[test]
+fn every_row_whose_id_is_an_id_form_accepts_its_own_prefix() {
+    // The defect was one row's `prefixes` not listing its own id's prefix, and
+    // only `qa-report` had that shape. This holds the rest of the table to it.
+    for (rel, id) in [
+        (".devforgeai/reports/STORY-014-qa.yaml", "STORY-014"),
+        (".devforgeai/reports/STORY-014-build.yaml", "STORY-014"),
+    ] {
+        let p = Project::new();
+        let body = if rel.ends_with("-qa.yaml") {
+            qa_report(id)
+        } else {
+            format!(
+                "schema: devforgeai/report/1\nid: {id}\nphase: build\nstatus: pass\nproduced_by: devforgeai-cli\nconsumes: []\nopen_questions: []\n"
+            )
+        };
+        p.write(rel, &body);
+
+        let mut ctx = p.ctx();
+        let a = DocValidateArgs {
+            paths: vec![rel.into()],
+            ..args()
+        };
+        let out = doc::validate(&mut ctx, &a, None).expect("outcome");
+        assert!(
+            !out.warnings.iter().any(|d| d.code == "DFA-E209"),
+            "{rel}: {:?}",
+            out.warnings
+        );
+    }
+}
+
+// --- the seven keys sit at the top level of a JSON document ---------------
+
+/// The flat envelope every JSON document but `tokens.json` carries.
+const FLAT_JSON: &str = concat!(
+    "{\n",
+    "  \"schema\": \"devforgeai/explore-payload/1\",\n",
+    "  \"id\": \"IDEA-001\",\n",
+    "  \"phase\": \"explore\",\n",
+    "  \"status\": \"drafting\",\n",
+    "  \"produced_by\": \"exploring-ideas\",\n",
+    "  \"consumes\": [],\n",
+    "  \"open_questions\": [],\n",
+    "  \"rows\": []\n",
+    "}\n"
+);
+
+/// The same seven keys hidden under a `meta` wrapper.
+const META_JSON: &str = concat!(
+    "{\n",
+    "  \"meta\": {\n",
+    "    \"schema\": \"devforgeai/explore-payload/1\",\n",
+    "    \"id\": \"IDEA-001\",\n",
+    "    \"phase\": \"explore\",\n",
+    "    \"status\": \"drafting\",\n",
+    "    \"produced_by\": \"exploring-ideas\",\n",
+    "    \"consumes\": [],\n",
+    "    \"open_questions\": []\n",
+    "  },\n",
+    "  \"rows\": []\n",
+    "}\n"
+);
+
+#[test]
+fn a_flat_json_payload_validates() {
+    for rel in [
+        ".devforgeai/explore/seed-data.json",
+        ".devforgeai/explore/sketch-request.json",
+    ] {
+        let p = Project::new();
+        p.write(rel, FLAT_JSON);
+
+        let mut ctx = p.ctx();
+        let a = DocValidateArgs {
+            paths: vec![rel.into()],
+            ..args()
+        };
+        let out = doc::validate(&mut ctx, &a, None).expect("outcome");
+        assert_eq!(out.exit.unwrap_or(0), 0, "{rel}: {:?}", out.warnings);
+    }
+}
+
+#[test]
+fn a_meta_wrapped_json_payload_is_refused() {
+    for rel in [
+        ".devforgeai/explore/seed-data.json",
+        ".devforgeai/explore/sketch-request.json",
+    ] {
+        let p = Project::new();
+        p.write(rel, META_JSON);
+
+        let mut ctx = p.ctx();
+        let a = DocValidateArgs {
+            paths: vec![rel.into()],
+            ..args()
+        };
+        let out = doc::validate(&mut ctx, &a, None).expect("outcome");
+        assert_ne!(out.exit.unwrap_or(0), 0, "{rel} is refused");
+
+        let d = out
+            .warnings
+            .iter()
+            .find(|d| d.code == "DFA-E203")
+            .unwrap_or_else(|| panic!("{rel}: {:?}", out.warnings));
+        // Naming the shape is worth more than reporting seven absent keys.
+        assert!(d.message.contains("schema"), "{}", d.message);
+        assert!(
+            d.message.contains("top level"),
+            "the message says where the keys belong: {}",
+            d.message
+        );
+        assert!(d.message.contains("meta"), "{}", d.message);
+    }
+}
+
+#[test]
+fn the_token_file_keeps_its_meta_wrapper() {
+    let p = Project::new();
+    // `brand/tokens.json` is the one exception: its top level is the token
+    // tree, so the envelope needs somewhere else to sit.
+    p.write(
+        ".devforgeai/brand/tokens.json",
+        concat!(
+            "{\n",
+            "  \"meta\": {\n",
+            "    \"schema\": \"devforgeai/tokens/1\",\n",
+            "    \"id\": \"TOKEN-001\",\n",
+            "    \"phase\": \"design\",\n",
+            "    \"status\": \"draft\",\n",
+            "    \"produced_by\": \"designing-interfaces\",\n",
+            "    \"consumes\": [],\n",
+            "    \"open_questions\": []\n",
+            "  },\n",
+            "  \"color\": { \"primary\": \"#3356ff\" }\n",
+            "}\n"
+        ),
+    );
+
+    let mut ctx = p.ctx();
+    let a = DocValidateArgs {
+        paths: vec![".devforgeai/brand/tokens.json".into()],
+        ..args()
+    };
+    let out = doc::validate(&mut ctx, &a, None).expect("outcome");
+    assert_eq!(out.exit.unwrap_or(0), 0, "{:?}", out.warnings);
+}

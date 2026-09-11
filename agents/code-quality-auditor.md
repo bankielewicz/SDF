@@ -48,8 +48,12 @@ and `limit`; `report ingest` copies all of them through unread. The
 `SubagentStop` hook hands the object to `devforgeai report ingest
 code-quality-auditor -`.
 
+The final message is that object alone: it starts with `{`, ends with `}`, and
+carries no code fence, no sentence before it, and no sentence after it. The
+ingest parses the whole message as JSON, so a fence or a word outside the
+braces is `DFA-E410` and the block is written at `status: unparsed`.
+
 <example>
-```json
 {
   "schema": "devforgeai/verifier/1",
   "subagent": "code-quality-auditor",
@@ -65,7 +69,6 @@ code-quality-auditor -`.
   ],
   "payload": { "method": "grep", "over_ceiling": 1 }
 }
-```
 </example>
 
 `payload.method` is the closed enum `command` and `grep`. With `metrics_command`

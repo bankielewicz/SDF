@@ -27,6 +27,11 @@ The prompt carries these fields and no others.
 
 One JSON object on stdout and nothing else: the `devforgeai/verifier/1` envelope, whose keys are `schema`, `subagent`, `id`, `passed`, `total`, `unit`, and `findings[]`, whose entries add `confidence`, `kind`, `path`, and `line`, with `payload` carrying this agent's own top-level fields. This agent adds none, so `payload` is `{}`. The `SubagentStop` hook hands the object to `devforgeai report ingest context-validator -`, which writes it at `verifiers.context`.
 
+The final message is that object alone: it starts with `{`, ends with `}`, and
+carries no code fence, no sentence before it, and no sentence after it. The
+ingest parses the whole message as JSON, so a fence or a word outside the
+braces is `DFA-E410` and the block is written at `status: unparsed`.
+
 ```json
 {
   "type": "object",
@@ -61,7 +66,6 @@ One JSON object on stdout and nothing else: the `devforgeai/verifier/1` envelope
 <example>
 Four changed paths, one of which crosses a layer boundary the rules forbid:
 
-```json
 { "schema": "devforgeai/verifier/1", "subagent": "context-validator", "id": "STORY-014",
   "passed": 3, "total": 4, "unit": "files",
   "findings": [
@@ -71,13 +75,11 @@ Four changed paths, one of which crosses a layer boundary the rules forbid:
       "evidence": "src/application/checkout.ext:118 calls into infrastructure, which CON-003 forbids" }
   ],
   "payload": {} }
-```
 </example>
 
 <example>
 Four changed paths, one carrying a naming departure no `CON-nnn` binds, which is `warn` and leaves `passed` where it stands:
 
-```json
 { "schema": "devforgeai/verifier/1", "subagent": "context-validator", "id": "STORY-014",
   "passed": 4, "total": 4, "unit": "files",
   "findings": [
@@ -87,7 +89,6 @@ Four changed paths, one carrying a naming departure no `CON-nnn` binds, which is
       "evidence": "src/domain/order.ext:12 declares a name the ## Naming conventions rows do not describe" }
   ],
   "payload": {} }
-```
 </example>
 
 `total` equals the number of changed paths; `passed` is `total` minus the number of those paths carrying a `severity: block` finding, so a `warn` or `info` lands in the report and leaves `passed` where it stands. Every finding carries `confidence`, a float from `0.0` to `1.0` for how far the reading of unfamiliar code carries.

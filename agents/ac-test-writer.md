@@ -31,6 +31,11 @@ The prompt carries these fields and no others.
 
 One JSON object on stdout and nothing else: the `devforgeai/verifier/1` envelope, whose keys are `schema`, `subagent`, `id`, `passed`, `total`, `unit`, and `findings[]`, with this agent's own top-level fields under `payload`. The `SubagentStop` hook hands it to `devforgeai report ingest ac-test-writer -`, which writes it at `verifiers.ac_testable`.
 
+The final message is that object alone: it starts with `{`, ends with `}`, and
+carries no code fence, no sentence before it, and no sentence after it. The
+ingest parses the whole message as JSON, so a fence or a word outside the
+braces is `DFA-E410` and the block is written at `status: unparsed`.
+
 ```json
 {
   "type": "object",
@@ -72,19 +77,16 @@ One JSON object on stdout and nothing else: the `devforgeai/verifier/1` envelope
 <example>
 A criterion that became one failing test:
 
-```json
 { "schema": "devforgeai/verifier/1", "subagent": "ac-test-writer", "id": "STORY-014",
   "passed": 1, "total": 1, "unit": "AC", "findings": [],
   "payload": { "testable": true, "ac": "AC-007", "test_paths": ["tests/checkout.ext"],
     "assertion": "a rejected payment leaves the order in the rejected state",
     "conflicts_with": [] } }
-```
 </example>
 
 <example>
 A criterion whose `Then` clause names no outcome a test reads:
 
-```json
 { "schema": "devforgeai/verifier/1", "subagent": "ac-test-writer", "id": "STORY-014",
   "passed": 0, "total": 1, "unit": "AC",
   "findings": [
@@ -94,13 +96,11 @@ A criterion whose `Then` clause names no outcome a test reads:
       "evidence": "AC-009 Then clause reads \"the customer is reassured\"" }
   ],
   "payload": { "testable": false, "ac": "AC-009", "test_paths": [], "conflicts_with": [] } }
-```
 </example>
 
 <example>
 A criterion that contradicts one other criterion of the same story, which emits one finding per id:
 
-```json
 { "schema": "devforgeai/verifier/1", "subagent": "ac-test-writer", "id": "STORY-014",
   "passed": 0, "total": 1, "unit": "AC",
   "findings": [
@@ -112,7 +112,6 @@ A criterion that contradicts one other criterion of the same story, which emits 
       "evidence": "AC-013 Then reads \"the order stays open\"; AC-011 Then reads \"the order closes\"" }
   ],
   "payload": { "testable": false, "ac": "AC-011", "test_paths": [], "conflicts_with": ["AC-013"] } }
-```
 </example>
 
 `total` is `1` on every invocation: one call reads one criterion. `passed` is `1` with `payload.testable` true and `0` otherwise, which is the same as `total` minus one when a `block` finding stands. `findings` is `[]` when `payload.testable` is true, and every finding this agent raises is `block`, so no `warn` exists here that could lower `passed`. Each finding carries `confidence`, a float from `0.0` to `1.0` for how firmly the clause reads. A `contradicts_other_ac` reason emits one finding per id in `payload.conflicts_with` plus one for `payload.ac`.

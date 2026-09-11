@@ -26,10 +26,14 @@ The prompt carries these fields and no others.
 
 One JSON object on stdout and nothing else: the `devforgeai/verifier/1` envelope. The object below is the whole contract, and this agent's own top-level fields sit under `payload`. This agent adds none, so `payload` is `{}`. The `SubagentStop` hook hands the object to `devforgeai report ingest deferral-auditor -`.
 
+The final message is that object alone: it starts with `{`, ends with `}`, and
+carries no code fence, no sentence before it, and no sentence after it. The
+ingest parses the whole message as JSON, so a fence or a word outside the
+braces is `DFA-E410` and the block is written at `status: unparsed`.
+
 <example>
 Five deferrals across the release set, one of which leaves a reachable path without a control:
 
-```json
 {
   "schema": "devforgeai/verifier/1",
   "subagent": "deferral-auditor",
@@ -50,13 +54,11 @@ Five deferrals across the release set, one of which leaves a reachable path with
   ],
   "payload": {}
 }
-```
 </example>
 
 <example>
 A release set whose deferrals all leave gaps nothing outside the project reaches under this platform:
 
-```json
 {
   "schema": "devforgeai/verifier/1",
   "subagent": "deferral-auditor",
@@ -76,7 +78,6 @@ A release set whose deferrals all leave gaps nothing outside the project reaches
   ],
   "payload": {}
 }
-```
 </example>
 
 `kind` is the closed enum `blocks_deployment`, `unjustified`, `circular`, `missing_report`, `accepted`. `severity` is `block` for the first four and `info` for `accepted`; every finding carries `confidence`, a float from `0.0` to `1.0` for how far the reading of the platform's exposure carries. `total` counts every deferred `FIND-nnn` across the set; `passed` is `total` minus the number of entries carrying a `block` finding, which is the same number as the `accepted` entries. A story with no deferral contributes to neither count. A finding at `severity: block` lowers `passed` below `total`, and the release gate decides what that means: the routing is the CLI's, not this agent's, which is why no per-finding boolean says so. The information a `blocks_deployment` boolean carried is already in `kind` and `severity` — `kind: blocks_deployment` at `severity: block` says it once.

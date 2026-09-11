@@ -202,7 +202,7 @@ Step 6 invokes the `designing-interfaces` skill with the JSON object below and c
 
 **4. Draft the one-page spec — subagent `flow-drafter`.** Input: the step 2c JSON, which carries the confirmed `holders[]` the user selected at 2b alongside `problem_statement`, `today`, `why_now`, and `weak_signals`, and the step 3 JSON — the flows are drawn from the holders the user confirmed rather than from the candidates; on a remedy run, the current `## Core flows` rows, `## Non-goals` lines, and the cited findings from the Discover report. Output: JSON with `flows` (3 to 5), `non_goals`, `success_signal`, `seed_data`. On a remedy run the agent returns only the cited `FLOW-nnn` rows in `flows`, and every other field unchanged from the brief. Failure path: a cited `FLOW-nnn` absent from `## Core flows` comes back in `unresolved_flow_ids`; the model writes one `open_questions` line per id and rewrites the ids that did resolve.
 
-**5. Write the brief and the seed data — model.** Input: the output of steps 2c, 3, and 4. Output: `.devforgeai/explore/brief.md` with `status: specified` and all twelve sections, and `.devforgeai/explore/seed-data.json`. On a remedy run only the cited rows in `## Core flows`, the frontmatter `open_questions`, and `status` change. Failure path: the `PostToolUse` hook runs `doc validate` and returns its diagnostic in `hookSpecificOutput.additionalContext`, which is the channel this event has; the model reads it and rewrites the section it names.
+**5. Write the brief and the seed data — model.** Input: the output of steps 2c, 3, and 4. Output: `.devforgeai/explore/brief.md` with `status: specified` and all twelve sections, written from `templates/brief.md`; and `.devforgeai/explore/seed-data.json`, written by reading `templates/seed-data.json` and filling its placeholders from the `seed_data` field step 4 returned — `id` takes the run's `IDEA-nnn`, and `entities[]` takes one object per entity with its `name`, its `fields` list, and 5 to 20 `rows` keyed by those fields. The written file holds the template's eight keys at the top level in template order and no others: the seven envelope keys sit beside `entities` in one flat object. `.devforgeai/brand/tokens.json` is the one JSON document in the framework that carries the envelope under a `meta` object; the seed data is not that shape, and a `meta` wrapper here leaves `doc validate` reading a document with no `schema`. On a remedy run only the cited rows in `## Core flows`, the frontmatter `open_questions`, and `status` change. Failure path: the `PostToolUse` hook runs `doc validate` and returns its diagnostic in `hookSpecificOutput.additionalContext`, which is the channel this event has; the model reads it and rewrites the section it names.
 
 **6. Mockups — model, `designing-interfaces` skill.** Input: `templates/sketch-request.json` read first, then filled — `id` and `idea_id` take the run's `IDEA-nnn`, `flows[]` takes one object per `## Core flows` row in row order, `brand.palette_hint` and `brand.type_hint` come from `## Target user`, and `seed_data_path` is the seed data path. The written file holds the template's keys at the top level in template order and no others: the seven envelope keys `schema`, `id`, `phase`, `status`, `produced_by`, `consumes`, `open_questions` sit at the top level of one flat object beside the document's own keys. `.devforgeai/brand/tokens.json` is the single documented exception, carrying the envelope under `meta`; every other document, MD or YAML or JSON, is flat, and a `meta` wrapper elsewhere leaves `doc validate` reading a document with no `schema`. The filled object is passed to the `design` skill in sketch mode through the Skill tool. Output: `.devforgeai/explore/sketch-request.json`, the files under `.devforgeai/explore/mockups/`, the `## Mockups` table filled from `screens`, and `status: mocked`. On a remedy run `flows` holds only the cited ids and only those rows of `## Mockups` change. Failure path: the skill returns `uncovered_flows` non-empty, and the model adds one `open_questions` line per uncovered id and continues to step 7.
 
@@ -838,6 +838,26 @@ carry_forward: []
 #     becomes: ADR-000, the reason this project exists
 #     consumer: establishing-context
 ```
+
+### `templates/seed-data.json`
+
+```json
+{
+  "schema": "devforgeai/explore-seed-data/1",
+  "id": "IDEA-nnn",
+  "phase": "explore",
+  "status": "recorded",
+  "produced_by": "exploring-ideas",
+  "consumes": [],
+  "open_questions": [],
+  "entities": [
+    { "name": "<entity name>", "fields": ["<field-1>", "<field-2>"],
+      "rows": [ { "<field-1>": "<value>", "<field-2>": "<value>" } ] }
+  ]
+}
+```
+
+Eight keys at the top level of one flat object, in this order: the seven envelope keys and `entities`. No `meta` wrapper — `brand/tokens.json` is the one JSON document in the framework shaped that way, and a wrapper here leaves `doc validate` reading a document with no `schema`. `id` takes the run's `IDEA-nnn`. Each `entities[]` object carries a `name`, a `fields` list, and `rows` keyed by those field names.
 
 ### `templates/sketch-request.json`
 

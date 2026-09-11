@@ -24,6 +24,11 @@ The prompt carries these fields and no others.
 
 One JSON object on stdout and nothing else.
 
+The final message is that object alone: it starts with `{`, ends with `}`, and
+carries no code fence, no sentence before it, and no sentence after it. The
+invoking skill parses the whole message as JSON, so a fence or a word outside
+the braces leaves the run with no result for this step.
+
 ```json
 { "type": "object", "required": ["idea_id","competitors","technologies","closest_match","sources"],
   "properties": {

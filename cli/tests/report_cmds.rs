@@ -404,3 +404,78 @@ fn report_note_preserves_the_gate_block() {
     assert!(text.contains("result: PASS"), "the gate block survives");
     assert!(text.contains("approach: outside-in"));
 }
+
+// --- one object, optionally fenced ---------------------------------------
+
+/// Ingest `source` and return the outcome.
+fn ingest_text(source: &str) -> devforgeai::Outcome {
+    let p = seeded();
+    let mut ctx = p.ctx();
+    report::ingest(
+        &mut ctx,
+        &ingest_args("kill-case-builder"),
+        Some(source.to_string()),
+    )
+    .expect("ingest returns an outcome either way")
+}
+
+/// True when the ingest refused the envelope.
+fn unparsed(out: &devforgeai::Outcome) -> bool {
+    out.warnings.iter().any(|d| d.code == "DFA-E410")
+}
+
+#[test]
+fn ingest_accepts_a_fenced_envelope() {
+    // A verifier is asked for one JSON object and nothing else, and models
+    // very often deliver exactly that inside a ```json fence. Five blocks in
+    // one run were output correct in every way that mattered.
+    for source in [
+        format!("```json\n{VERIFIER_JSON}\n```"),
+        format!("```JSON\n{VERIFIER_JSON}\n```"),
+        // No language tag.
+        format!("```\n{VERIFIER_JSON}\n```"),
+        // Trailing whitespace around the whole block.
+        format!("\n  ```json\n{VERIFIER_JSON}\n```  \n"),
+    ] {
+        let out = ingest_text(&source);
+        assert!(!unparsed(&out), "refused: {source:?} -> {:?}", out.warnings);
+        assert_eq!(out.data["passed"], 3);
+        assert_eq!(out.data["total"], 4);
+    }
+}
+
+#[test]
+fn ingest_accepts_a_bare_envelope() {
+    let out = ingest_text(VERIFIER_JSON);
+    assert!(!unparsed(&out), "{:?}", out.warnings);
+    assert_eq!(out.data["passed"], 3);
+}
+
+#[test]
+fn ingest_refuses_prose_around_the_envelope() {
+    // Prose before or after is a subagent saying something other than the
+    // envelope, which is the case the check exists for. Unwrapping only a
+    // whole-input fence is what keeps that refusal.
+    for source in [
+        format!("Here is the result:\n```json\n{VERIFIER_JSON}\n```"),
+        format!("```json\n{VERIFIER_JSON}\n```\nI hope that helps."),
+        format!("I looked at the brief and it seems fine.\n{VERIFIER_JSON}"),
+        "The kill case is weak.".to_string(),
+        // An opening fence with no closing one is not a fenced object.
+        format!("```json\n{VERIFIER_JSON}"),
+    ] {
+        let out = ingest_text(&source);
+        assert!(unparsed(&out), "accepted: {source:?}");
+    }
+}
+
+#[test]
+fn ingest_refuses_two_objects() {
+    for source in [
+        format!("{VERIFIER_JSON}\n{VERIFIER_JSON}"),
+        format!("```json\n{VERIFIER_JSON}\n{VERIFIER_JSON}\n```"),
+    ] {
+        let out = ingest_text(&source);
+        assert!(unparsed(&out), "accepted two objects: {source:?}");
+    }
+}

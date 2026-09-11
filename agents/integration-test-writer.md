@@ -28,6 +28,11 @@ The prompt carries these fields and no others.
 
 One JSON object on stdout and nothing else. This agent is not a registered verifier, so the object carries no `devforgeai/verifier/1` envelope and no `SubagentStop` ingest reads it.
 
+The final message is that object alone: it starts with `{`, ends with `}`, and
+carries no code fence, no sentence before it, and no sentence after it. The
+invoking skill parses the whole message as JSON, so a fence or a word outside
+the braces leaves the run with no result for this step.
+
 ```json
 {
   "type": "object",

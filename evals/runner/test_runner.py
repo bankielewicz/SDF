@@ -427,9 +427,12 @@ class RunnerTestCase(unittest.TestCase):
         # the two that measured past the 900s default: Plan at 850s on PLAN-01,
         # and Build, which times out running a three-criterion TDD loop with two
         # subagents per criterion and the lint, coverage and complexity commands.
+        # Build is 2400: with hooks on, the Stop hook re-runs the gate — the
+        # test command included — once per block, and 1500 was not enough.
+        wanted = {"implementing-stories": 2400}
         for skill in ("establishing-context", "designing-interfaces",
                       "exploring-ideas", "releasing-software", "planning-work",
-                      "implementing-stories"):
+                      "implementing-stories", "validating-quality"):
             path = os.path.join(root, "skills", skill, "evals", "cases.jsonl")
             if not os.path.isfile(path):
                 self.skipTest("%s is not in this tree" % skill)
@@ -437,7 +440,7 @@ class RunnerTestCase(unittest.TestCase):
                 if not line.strip():
                     continue
                 case = json.loads(line)
-                self.assertEqual(case.get("timeout"), 1500,
+                self.assertEqual(case.get("timeout"), wanted.get(skill, 1500),
                                  "%s %s" % (skill, case["id"]))
 
     # -- the stream reader (EVL-010) -----------------------------------------
@@ -1140,6 +1143,151 @@ documented stop-path case instead, which is what this asserts.
         options = self._options(["--case", "c1"])
         with self.assertRaises(run_jsonl.CaseError):
             run_jsonl.make_workspace(self._cases()[0], self._files("c1"), options)
+
+    # -- config merge and incremental logging --------------------------------
+
+    def test_a_seeded_config_inherits_the_verifier_registry(self):
+        run_jsonl._DEFAULTS.clear()
+        self.addCleanup(run_jsonl._DEFAULTS.clear)
+        default = (
+            'schema = "devforgeai/config/1"\n'
+            'generated_at = "2026-09-10T09:00:00Z"\n'
+            "degraded = true\n"
+            "\n"
+            "[frontend]\n"
+            'globs = ["**/*.css"]\n'
+            "\n"
+            "[build]\n"
+            "complexity_max = 10\n"
+            "\n"
+            "[coverage]\n"
+            "overall_min = 80.0\n"
+            + "".join('[[verifier]]\nname = "v%02d"\nphase = "build"\n\n' % n
+                      for n in range(20)))
+        run_jsonl._DEFAULTS["files"] = {"config.toml": default}
+
+        seeded = ('schema = "devforgeai/config/1"\n'
+                  'generated_at = "2026-09-10T09:00:00Z"\n'
+                  "degraded = false\n"
+                  "\n"
+                  "[[stack]]\n"
+                  'id = "primary"\n'
+                  'source = "manual"\n'
+                  'test_command = "sh ci/test"\n'
+                  "\n"
+                  "[build]\n"
+                  "complexity_max = 4\n")
+        options = self._options(["--case", "c1"])
+        case = dict(self._cases()[0])
+        case["setup"] = {"files": dict(case["setup"]["files"])}
+        case["setup"]["files"][".devforgeai/config.toml"] = seeded
+        files = run_jsonl.resolve_fixtures(case["setup"]["files"], self.skill)
+        workspace, _home = run_jsonl.make_workspace(case, files, options)
+        with open(os.path.join(workspace, ".devforgeai", "config.toml"),
+                  encoding="utf-8") as handle:
+            merged = handle.read()
+        # Absent tables come from the default; the registry is why this exists.
+        self.assertEqual(merged.count("[[verifier]]"), 20)
+        self.assertIn("[frontend]", merged)
+        self.assertIn("[coverage]", merged)
+        # A table the case states replaces the default's outright.
+        self.assertIn("complexity_max = 4", merged)
+        self.assertNotIn("complexity_max = 10", merged)
+        self.assertIn('test_command = "sh ci/test"', merged)
+        self.assertIn("degraded = false", merged)
+
+    def test_merge_config_returns_the_seed_when_there_is_no_default(self):
+        seeded = 'schema = "x"\n\n[build]\ncomplexity_max = 4\n'
+        self.assertEqual(run_jsonl.merge_config(seeded, ""), seeded)
+
+    def test_split_config_tables_keeps_a_subtable_with_its_parent(self):
+        text = ('schema = "x"\n\n[[stack]]\nid = "primary"\n\n'
+                '[stack.env]\nCI = "1"\n\n[build]\ncomplexity_max = 4\n')
+        preamble, blocks = run_jsonl.split_config_tables(text)
+        self.assertIn("schema", preamble)
+        self.assertEqual(sorted(blocks), ["build", "stack"])
+        self.assertIn("[stack.env]", blocks["stack"][0])
+
+    def test_stdout_is_written_as_it_arrives_so_a_timeout_leaves_evidence(self):
+        # A child that prints, then hangs past the timeout. Without incremental
+        # writing the kill would leave no log at all, which is what BLD-01 hit.
+        script = os.path.join(self.root, "bin", "slow.py")
+        write(script,
+              "import sys, time\n"
+              "sys.stdin.read()\n"
+              'sys.stdout.write(\'{"type": "system", "subtype": "init"}\' + "\\n")\n'
+              "sys.stdout.flush()\n"
+              "time.sleep(30)\n")
+        logs = os.path.join(self.root, "logs")
+        out, err, code = run_jsonl.run_streaming(
+            [sys.executable, script], self.root, dict(os.environ), "p", 3,
+            os.path.join(logs, "slow.stdout.txt"))
+        self.assertIsNone(code)          # the timeout struck
+        self.assertIn("system", out)     # the partial stdout came back
+        with open(os.path.join(logs, "slow.stdout.txt"), encoding="utf-8") as h:
+            self.assertIn("system", h.read())   # and it is on disk
+
+    def test_streaming_returns_the_whole_stream_and_the_code(self):
+        script = os.path.join(self.root, "bin", "quick.py")
+        write(script,
+              "import sys\n"
+              "prompt = sys.stdin.read()\n"
+              'sys.stdout.write("saw " + prompt + "\\n")\n'
+              'sys.stderr.write("noise\\n")\n'
+              "raise SystemExit(3)\n")
+        logs = os.path.join(self.root, "logs2")
+        out, err, code = run_jsonl.run_streaming(
+            [sys.executable, script], self.root, dict(os.environ), "hello", 60,
+            os.path.join(logs, "quick.stdout.txt"))
+        self.assertEqual(code, 3)
+        self.assertIn("saw hello", out)
+        self.assertIn("noise", err)
+        with open(os.path.join(logs, "quick.stdout.txt"), encoding="utf-8") as h:
+            self.assertIn("saw hello", h.read())
+
+    def test_verifiers_merge_by_name_and_keep_the_whole_catalogue(self):
+        default = ['[[verifier]]\nname = "kill-case-builder"\nrequired = true',
+                   '[[verifier]]\nname = "ac-test-writer"\nrequired = true',
+                   '[[verifier]]\nname = "deferral-auditor"\nrequired = true']
+        seeded = ['[[verifier]]\nname = "ac-test-writer"\nrequired = false',
+                  '[[verifier]]\nname = "local-only"\nrequired = true']
+        merged = run_jsonl.merge_verifiers(seeded, default)
+        names = [run_jsonl._block_name(one) for one in merged]
+        # Every default name survives, in order, and the fixture's extra follows.
+        self.assertEqual(names, ["kill-case-builder", "ac-test-writer",
+                                 "deferral-auditor", "local-only"])
+        # The seeded row replaced the default row of the same name.
+        self.assertIn("required = false", merged[1])
+        self.assertNotIn("required = false", merged[0])
+
+    def test_an_absent_verifier_table_keeps_the_default_registry(self):
+        default = ['[[verifier]]\nname = "a"', '[[verifier]]\nname = "b"']
+        self.assertEqual(run_jsonl.merge_verifiers([], default), default)
+
+    def test_a_fixture_registry_does_not_shrink_the_catalogue(self):
+        run_jsonl._DEFAULTS.clear()
+        self.addCleanup(run_jsonl._DEFAULTS.clear)
+        run_jsonl._DEFAULTS["files"] = {"config.toml": (
+            'schema = "devforgeai/config/1"\ndegraded = true\n\n'
+            + "".join('[[verifier]]\nname = "v%02d"\nrequired = true\n\n' % n
+                      for n in range(20)))}
+        seeded = ('schema = "devforgeai/config/1"\ndegraded = false\n\n'
+                  '[[stack]]\nid = "primary"\nsource = "manual"\n\n'
+                  '[[verifier]]\nname = "v03"\nrequired = false\n')
+        options = self._options(["--case", "c1"])
+        case = dict(self._cases()[0])
+        case["setup"] = {"files": dict(case["setup"]["files"])}
+        case["setup"]["files"][".devforgeai/config.toml"] = seeded
+        files = run_jsonl.resolve_fixtures(case["setup"]["files"], self.skill)
+        workspace, _home = run_jsonl.make_workspace(case, files, options)
+        with open(os.path.join(workspace, ".devforgeai", "config.toml"),
+                  encoding="utf-8") as handle:
+            merged = handle.read()
+        # A fixture naming one row keeps the other nineteen: `gate check` fails
+        # DFA-E316 on a phase whose verifier the file does not register.
+        self.assertEqual(merged.count("[[verifier]]"), 20)
+        self.assertIn('required = false', merged)
+        self.assertIn('name = "v19"', merged)
 
     # -- installed skill name ------------------------------------------------
 

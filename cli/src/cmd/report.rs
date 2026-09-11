@@ -95,6 +95,34 @@ pub fn show(
     Ok(out)
 }
 
+/// The body of a single Markdown code fence, or the text unchanged.
+///
+/// A verifier is asked for one JSON object and nothing else, and models very
+/// often deliver exactly that inside a ```json fence. Refusing it cost five
+/// `DFA-E410` blocks in one run for output that was correct in every way that
+/// matters. The fence is a transport wrapper, so it is unwrapped here, at the
+/// edge, rather than in the envelope parser.
+///
+/// Only a whole-input fence is unwrapped. Prose before or after it is still
+/// refused: that is a subagent saying something other than the envelope, which
+/// is the case the check exists for.
+fn unfence(text: &str) -> &str {
+    let t = text.trim();
+    let Some(rest) = t.strip_prefix("```") else {
+        return t;
+    };
+    let Some(inner) = rest.strip_suffix("```") else {
+        // An opening fence with no closing one is not a fenced object.
+        return t;
+    };
+    // The opening fence may carry a language tag on the same line.
+    let body = match inner.split_once('\n') {
+        Some((tag, body)) if tag.trim().chars().all(|c| c.is_ascii_alphanumeric()) => body,
+        _ => inner,
+    };
+    body.trim()
+}
+
 /// `devforgeai report ingest <subagent> <source>`
 pub fn ingest(
     ctx: &mut Ctx,
@@ -159,7 +187,7 @@ pub fn ingest(
     let now = crate::time::now_rfc3339();
     let mut warnings: Vec<Diag> = Vec::new();
 
-    let (block, findings) = match report::parse_verifier(&source_text, &args.subagent) {
+    let (block, findings) = match report::parse_verifier(unfence(&source_text), &args.subagent) {
         Ok(parsed) => {
             let block = VerifierBlock {
                 subagent: args.subagent.clone(),

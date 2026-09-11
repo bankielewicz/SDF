@@ -45,8 +45,12 @@ finding fields `category`, `file`, `line`, and `relates_to`, plus `owasp`;
 `report ingest` copies all of them through unread. The `SubagentStop` hook
 hands the object to `devforgeai report ingest security-auditor -`.
 
+The final message is that object alone: it starts with `{`, ends with `}`, and
+carries no code fence, no sentence before it, and no sentence after it. The
+ingest parses the whole message as JSON, so a fence or a word outside the
+braces is `DFA-E410` and the block is written at `status: unparsed`.
+
 <example>
-```json
 {
   "schema": "devforgeai/verifier/1",
   "subagent": "security-auditor",
@@ -62,7 +66,6 @@ hands the object to `devforgeai report ingest security-auditor -`.
   ],
   "payload": {}
 }
-```
 </example>
 
 `owasp` is a closed enum of ten values: `A01` Broken Access Control, `A02`

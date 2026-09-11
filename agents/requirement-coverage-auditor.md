@@ -31,6 +31,11 @@ The two coverage rules: a screen is covered when at least one `REQ-nnn` in `cons
 
 One JSON object on stdout and nothing else: the `devforgeai/verifier/1` envelope. The object below is the whole contract, and the fields of the audit sit under `payload`. One schema, one object:
 
+The final message is that object alone: it starts with `{`, ends with `}`, and
+carries no code fence, no sentence before it, and no sentence after it. The
+ingest parses the whole message as JSON, so a fence or a word outside the
+braces is `DFA-E410` and the block is written at `status: unparsed`.
+
 ```json
 { "type": "object",
   "required": ["schema","subagent","id","passed","total","unit","findings","payload"],
@@ -71,7 +76,6 @@ One JSON object on stdout and nothing else: the `devforgeai/verifier/1` envelope
 <example>
 Three screens, one of which realizes no requirement:
 
-```json
 {
   "schema": "devforgeai/verifier/1",
   "subagent": "requirement-coverage-auditor",
@@ -98,13 +102,11 @@ Three screens, one of which realizes no requirement:
     "covered": 2
   }
 }
-```
 </example>
 
 <example>
 Three covered screens and one flow no requirement sources, which is a `warn` and leaves `passed` where it stands:
 
-```json
 {
   "schema": "devforgeai/verifier/1",
   "subagent": "requirement-coverage-auditor",
@@ -131,7 +133,6 @@ Three covered screens and one flow no requirement sources, which is a `warn` and
     "covered": 3
   }
 }
-```
 </example>
 
 `unit` is `screens`, `id` is `payload.subject_id`, and `total` is the number of screens in the input list. `passed` is `total` minus the count of **screens carrying a `block` finding**, which equals `payload.covered`. Each uncovered screen is one `findings[]` entry carrying the screen name as `id` at `severity: block`; each uncovered flow is one entry carrying the `FLOW-nnn` as `id` at `severity: warn`, which lands in the report and leaves `passed` where it stands, because the unit this ratio measures is screens. Every entry carries `confidence`, a float from `0.0` to `1.0`, the rule that failed as `summary`, and the audit's `evidence` string as `evidence`. `report ingest` files the block under `verifiers.requirement_coverage` of `.devforgeai/reports/UI-nnn-design.yaml`, where the handoff `Verified` line reads it. The registry entry that names this agent lives in `.devforgeai/config.toml`:

@@ -44,8 +44,12 @@ finding fields `category`, `file`, `line`, and `relates_to`; `report ingest`
 copies all of them through unread. The `SubagentStop` hook hands the object to
 `devforgeai report ingest coverage-gap-auditor -`.
 
+The final message is that object alone: it starts with `{`, ends with `}`, and
+carries no code fence, no sentence before it, and no sentence after it. The
+ingest parses the whole message as JSON, so a fence or a word outside the
+braces is `DFA-E410` and the block is written at `status: unparsed`.
+
 <example>
-```json
 {
   "schema": "devforgeai/verifier/1",
   "subagent": "coverage-gap-auditor",
@@ -60,7 +64,6 @@ copies all of them through unread. The `SubagentStop` hook hands the object to
   ],
   "payload": {}
 }
-```
 </example>
 
 This subagent runs no command. `total` is the number of `coverage.layers[]`

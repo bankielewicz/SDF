@@ -28,10 +28,14 @@ The prompt carries these fields and no others.
 
 One JSON object on stdout and nothing else: the `devforgeai/verifier/1` envelope. The object below is the whole contract, and this agent's own top-level fields sit under `payload`. This agent adds none, so `payload` is `{}`. The `SubagentStop` hook hands the object to `devforgeai report ingest story-invest-auditor -`.
 
+The final message is that object alone: it starts with `{`, ends with `}`, and
+carries no code fence, no sentence before it, and no sentence after it. The
+ingest parses the whole message as JSON, so a fence or a word outside the
+braces is `DFA-E410` and the block is written at `status: unparsed`.
+
 <example>
 A sprint of eight stories, one requirement read two ways and one oversized story:
 
-```json
 {
   "schema": "devforgeai/verifier/1",
   "subagent": "story-invest-auditor",
@@ -51,13 +55,11 @@ A sprint of eight stories, one requirement read two ways and one oversized story
   ],
   "payload": {}
 }
-```
 </example>
 
 <example>
 A sprint whose stories the reading carries, where the `warn` finding leaves `passed` at `total`:
 
-```json
 {
   "schema": "devforgeai/verifier/1",
   "subagent": "story-invest-auditor",
@@ -73,7 +75,6 @@ A sprint whose stories the reading carries, where the `warn` finding leaves `pas
   ],
   "payload": {}
 }
-```
 </example>
 
 `severity` is the closed enum `block`, `warn`, `info`, and every finding carries `confidence`, a float from `0.0` to `1.0`. A finding's `id` is the upstream id it cites — a `REQ-nnn` for an ambiguous requirement, a `CON-nnn` for a missing or contradictory constraint — so `devforgeai handoff` renders the `Found` line and composes the `--remedy` list from `findings[].id` with no further field. A judgment about a story carries that story's `STORY-nnn` as its `id` and `severity` of `warn`.

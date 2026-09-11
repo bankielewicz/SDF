@@ -2337,3 +2337,59 @@ fn stop_scan_establishes_a_baseline_on_a_fresh_project() {
     assert_eq!(exit_of(&out), 0);
     assert!(!p.state().stop_hook.scanned_at.is_empty());
 }
+
+#[test]
+fn subagent_stop_accepts_a_fenced_envelope() {
+    let _home = TrustHome::pinned();
+    let p = Project::new();
+    p.set_phase("explore", "IDEA-003");
+
+    let envelope = serde_json::json!({
+        "schema": "devforgeai/verifier/1",
+        "subagent": "kill-case-builder",
+        "id": "IDEA-003",
+        "passed": 2,
+        "total": 3,
+        "unit": "signals",
+        "findings": [],
+    })
+    .to_string();
+
+    // The SubagentStop arm hands `last_assistant_message` to `report ingest`,
+    // so the fence the agent wrapped its object in is unwrapped there.
+    let out = dispatch(
+        &p,
+        "subagent-stop",
+        &serde_json::json!({
+            "agent_id": "a1",
+            "agent_type": "kill-case-builder",
+            "last_assistant_message": format!("```json\n{envelope}\n```"),
+            "stop_hook_active": false,
+        }),
+    );
+
+    assert_eq!(exit_of(&out), 0, "a fenced envelope is not a refusal");
+    assert_eq!(out.data["ingest"]["passed"], 2);
+    assert_eq!(out.data["ingest"]["total"], 3);
+}
+
+#[test]
+fn subagent_stop_still_blocks_on_prose_around_the_envelope() {
+    let _home = TrustHome::pinned();
+    let p = Project::new();
+    p.set_phase("explore", "IDEA-003");
+
+    let out = dispatch(
+        &p,
+        "subagent-stop",
+        &serde_json::json!({
+            "agent_id": "a1",
+            "agent_type": "kill-case-builder",
+            "last_assistant_message": "Here is what I found:\n```json\n{\"schema\":\"devforgeai/verifier/1\"}\n```",
+            "stop_hook_active": false,
+        }),
+    );
+
+    assert_eq!(exit_of(&out), 2, "prose beside the object is still refused");
+    assert_eq!(hook_json(&out)["decision"], "block");
+}

@@ -243,7 +243,7 @@ pub fn doc_type_for(rel: &str) -> Option<DocType> {
             &["draft", "approved"],
             &["TOKEN"],
             Extras::Permitted,
-            Source::Json,
+            Source::JsonMeta,
         )),
         "brand/brand-kit.md" => Some(row(
             "brand-kit",
@@ -580,19 +580,13 @@ fn check_values(fm: &Frontmatter, row: &DocType, rel: &str, ctx: &Ctx, doc: &mut
                 };
                 doc.errors
                     .push(Diag::at_line(code, message, rel, fm.line_of("id")));
-            } else if ids::is_id(id) {
-                // Where the grammar is an ID form, its prefix is in the row's list.
-                if let Some((prefix, _)) = ids::split_id(id) {
-                    if !row.prefixes.is_empty() && !row.prefixes.contains(&prefix) {
-                        doc.errors.push(Diag::at_line(
-                            "DFA-E209",
-                            format!("{rel} id '{id}' is malformed"),
-                            rel,
-                            fm.line_of("id"),
-                        ));
-                    }
-                }
             }
+            // The pattern is the whole rule for the document's own id, and
+            // `row.prefixes` is a different thing: the prefixes the document
+            // may *define*. Re-testing the own id against that list refused
+            // every QA report, whose id is a `STORY-nnn` while the ids it
+            // allocates are `FIND-nnn`. The two lists coincide on most rows by
+            // accident, which is why only one row showed it.
         }
         // A release version is greater than the highest existing one.
         if row.name == "release" && is_version(id) {

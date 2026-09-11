@@ -26,8 +26,15 @@ pub enum Source {
     Markdown,
     /// The top level of a YAML document.
     Yaml,
-    /// The `meta` object of a JSON document.
+    /// The top level of a JSON document.
     Json,
+    /// The `meta` object of a JSON document.
+    ///
+    /// `brand/tokens.json` alone: its top level is the token tree, so the
+    /// envelope needs somewhere else to sit. Every other JSON document the
+    /// framework produces carries the seven keys at the top level, the way a
+    /// YAML document does.
+    JsonMeta,
 }
 
 /// A parsed frontmatter block: the mapping, the key order as written, and the
@@ -82,7 +89,8 @@ pub fn parse(src: &str, kind: Source, path: &str) -> Result<Frontmatter, Diag> {
     match kind {
         Source::Markdown => parse_markdown(src, path),
         Source::Yaml => parse_yaml(src, path),
-        Source::Json => parse_json(src, path),
+        Source::Json => parse_json_flat(src, path),
+        Source::JsonMeta => parse_json_meta(src, path),
     }
 }
 
@@ -148,7 +156,49 @@ fn parse_yaml(src: &str, path: &str) -> Result<Frontmatter, Diag> {
     })
 }
 
-fn parse_json(src: &str, path: &str) -> Result<Frontmatter, Diag> {
+/// The seven keys at the top level of a JSON document.
+fn parse_json_flat(src: &str, path: &str) -> Result<Frontmatter, Diag> {
+    let v: serde_json::Value = serde_json::from_str(src).map_err(|e| {
+        Diag::at_line(
+            "DFA-E202",
+            format!("{path} is not valid JSON: {e}"),
+            path,
+            1,
+        )
+    })?;
+    let obj = v.as_object().ok_or_else(|| {
+        Diag::at_line(
+            "DFA-E202",
+            format!("{path} frontmatter is not a YAML mapping"),
+            path,
+            1,
+        )
+    })?;
+
+    // A `meta` wrapper is the shape `brand/tokens.json` uses, and the one
+    // every other JSON document is mistaken for. Saying so is worth more than
+    // reporting seven absent keys one at a time.
+    if !obj.contains_key(KEYS[0]) {
+        if let Some(meta) = obj.get("meta") {
+            if meta.is_object() {
+                return Err(Diag::at_line(
+                    "DFA-E203",
+                    format!(
+                        "{path} frontmatter has no key '{}' at the top level; `meta` is not a wrapper for this document",
+                        KEYS[0]
+                    ),
+                    path,
+                    1,
+                ));
+            }
+        }
+    }
+
+    Ok(from_json_object(obj, src))
+}
+
+/// The seven keys inside the `meta` object.
+fn parse_json_meta(src: &str, path: &str) -> Result<Frontmatter, Diag> {
     let v: serde_json::Value = serde_json::from_str(src).map_err(|e| {
         Diag::at_line(
             "DFA-E202",
@@ -174,19 +224,24 @@ fn parse_json(src: &str, path: &str) -> Result<Frontmatter, Diag> {
         )
     })?;
 
+    Ok(from_json_object(obj, src))
+}
+
+/// A `Frontmatter` over a JSON object's keys, in the order they were written.
+fn from_json_object(obj: &serde_json::Map<String, serde_json::Value>, src: &str) -> Frontmatter {
     let order: Vec<String> = obj.keys().cloned().collect();
     let mut map = serde_yaml_ng::Mapping::new();
     for (k, val) in obj {
         let converted = serde_yaml_ng::to_value(val).unwrap_or(serde_yaml_ng::Value::Null);
         map.insert(serde_yaml_ng::Value::String(k.clone()), converted);
     }
-    Ok(Frontmatter {
+    Frontmatter {
         map,
         order,
         start_line: 1,
         body_line: 1,
         body: src.to_string(),
-    })
+    }
 }
 
 fn mapping(
@@ -302,14 +357,14 @@ mod tests {
   },
   "color": { "primary": { "light": "#3355ff", "dark": "#88aaff" } }
 }"##;
-        let fm = parse(src, Source::Json, "tokens.json").expect("parses");
+        let fm = parse(src, Source::JsonMeta, "tokens.json").expect("parses");
         assert_eq!(fm.order, KEYS, "meta carries the seven keys in order");
         assert_eq!(fm.str_key("produced_by"), Some("designing-interfaces"));
     }
 
     #[test]
     fn tokens_json_without_meta_gives_e203() {
-        let d = parse(r#"{"color":{}}"#, Source::Json, "t.json").expect_err("no meta");
+        let d = parse(r#"{"color":{}}"#, Source::JsonMeta, "t.json").expect_err("no meta");
         assert_eq!(d.code, "DFA-E203");
     }
 

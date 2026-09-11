@@ -26,6 +26,11 @@ The prompt carries these fields and no others.
 
 One JSON object on stdout and nothing else: the `devforgeai/verifier/1` envelope. The object below is the whole contract, and the six fields of the kill case sit under `payload`. One schema, one object:
 
+The final message is that object alone: it starts with `{`, ends with `}`, and
+carries no code fence, no sentence before it, and no sentence after it. The
+ingest parses the whole message as JSON, so a fence or a word outside the
+braces is `DFA-E410` and the block is written at `status: unparsed`.
+
 ```json
 { "type": "object",
   "required": ["schema","subagent","id","passed","total","unit","findings","payload"],
@@ -54,7 +59,6 @@ One JSON object on stdout and nothing else: the `devforgeai/verifier/1` envelope
 <example>
 A brief that answers two of the three objections raised against it:
 
-```json
 {
   "schema": "devforgeai/verifier/1",
   "subagent": "kill-case-builder",
@@ -80,13 +84,11 @@ A brief that answers two of the three objections raised against it:
     "confidence": 0.6
   }
 }
-```
 </example>
 
 <example>
 A brief too thin to argue against, which still asks the decision question with its three options:
 
-```json
 {
   "schema": "devforgeai/verifier/1",
   "subagent": "kill-case-builder",
@@ -106,7 +108,6 @@ A brief too thin to argue against, which still asks the decision question with i
     "confidence": 0
   }
 }
-```
 </example>
 
 `total` is the length of `payload.kill_case`, `passed` is the count of its entries the brief already answers, `unit` is `objections`, and `findings` is `[]`: this phase allocates no finding ids, so no `warn` entry exists that could lower `passed`, and the ratio measures objections answered and nothing else. Every `payload.evidence` entry carries its own `confidence` from `0.0` to `1.0`. The ingest writes the object under `verifiers.kill_case` of `.devforgeai/reports/IDEA-nnn-explore.yaml`, where the handoff `Verified` line reads it. The registry entry that names this agent lives in `.devforgeai/config.toml`:

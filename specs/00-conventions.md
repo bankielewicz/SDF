@@ -177,7 +177,7 @@ open_questions: []
 ---
 ```
 
-YAML documents put the same keys at the top level. The envelope sits at the top level of every document the framework writes, MD and YAML alike, with one documented exception: `.devforgeai/brand/tokens.json` carries it under `meta`, because the rest of that file is a token tree a design tool reads and a sibling key at the root would be read as a token group. IDs are zero-padded three digits, allocated by `devforgeai doc validate --allocate <prefix>` (returns next free ID). Sections in MD documents appear in the order the template defines and use the template's heading text verbatim.
+YAML documents put the same keys at the top level. The envelope sits at the top level of every document the framework writes — Markdown frontmatter, YAML, and JSON alike — with one documented exception: `.devforgeai/brand/tokens.json` carries it under `meta`, because the rest of that file is a token tree a design tool reads and a sibling key at the root would be read as a token group. `explore/seed-data.json` and `explore/sketch-request.json` are flat: the seven keys sit at the root beside the document's own, and `doc validate` refuses a `meta` wrapper on any JSON kind but `tokens`, since a document whose envelope the validator cannot see has none as far as anything downstream is concerned. IDs are zero-padded three digits, allocated by `devforgeai doc validate --allocate <prefix>` (returns next free ID). Sections in MD documents appear in the order the template defines and use the template's heading text verbatim.
 
 ## 6. Handoff format (fixed)
 
