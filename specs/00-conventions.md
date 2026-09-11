@@ -222,6 +222,8 @@ All hooks call the binary. All hooks run `devforgeai trust verify` first. Exit 2
 
 **The four Stop cases.** The dispatcher reads `stop_hook_active` and `session_id` from the payload, scans the documents written since the last Stop and runs the producer check on each, runs the gate, and writes one JSON object to stdout and nothing else. A scan refusal makes the result FAIL whatever the gate said and appears in the `reason` as `DFA-E212 <path>: <message>`: the `PreToolUse` write-tool arm never sees a shell redirection, so the scan is where a document written from the wrong phase through `cat >` is caught. `state.toml` `[stop_hook].blocked_phase` and `blocked_id` are a record of what last blocked and nothing reads them; `blocked_session` alone keys the budget.
 
+During a Build run the sources are in a git worktree and the hook fires in the main checkout. There is one `state.toml`, at the root, and each open worktree is one `[[worktree]]` entry in it; the gate's document and id checks read the root, and its command-running and source-path checks run against the entry whose `story` is `[active].build`. A worktree holds no state file of its own.
+
 *Case A — gate PASS.* Exit 0, `{"systemMessage": <block>}`.
 
 *Case B — gate FAIL, inside the block budget.* Exit 2, one object carrying both keys: `decision: "block"` with a `reason` naming the failing checks and addressed to Claude, and `systemMessage` carrying the twelve-line block addressed to the user. The same `reason` text is copied to stderr, so a schema change upstream degrades to the stderr path rather than to silence.

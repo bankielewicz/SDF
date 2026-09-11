@@ -8,19 +8,23 @@ Read this at workflow step 4. Git is reached through four calls and no other pat
 devforgeai worktree ensure <STORY-nnn>
 ```
 
-The path is `<config.toml [build].worktree_root>/<STORY-nnn>`, resolved against the project root, default `../wt`. The branch is `<[build].branch_prefix><STORY-nnn>`, default prefix `story/`, cut from `[build].base_ref`, default `HEAD`. The command prints the path on stdout, and that path is where the rest of the run works.
+The path is `<config.toml [build].worktree_root>/<STORY-nnn>`, resolved against the project root, default `../wt`. The branch is `<[build].branch_prefix><STORY-nnn>`, default prefix `story/`, cut from `[build].base_ref`, default `HEAD`. The command prints the path on stdout, and appends a `[[worktree]]` entry — `story`, `path`, `branch`, `created_at` — to the main checkout's `state.toml`. One entry per live worktree; the registry is what every later resolution reads.
 
 The call is idempotent. A path that is already a worktree of this repository on the matching branch is printed and the command exits 0, which is what a `--remedy` and a `--resume` run rely on: neither creates a second worktree, and both keep every commit the earlier run made.
 
-`ensure` also copies the main checkout's `.devforgeai/state.toml` into the new worktree. `state.toml` is the one untracked path under `.devforgeai/`; every other path there is tracked and therefore already present in the checkout. Without the copy, a `phase set` inside a fresh worktree would start from the default phase.
+## What lives where, and which directory a command runs in
 
-## Why each worktree carries its own state
+The worktree holds sources and tests: the paths the story's `## Files` table declares, and nothing else the run writes. Every `.devforgeai/` document, every report, and `state.toml` live in the main checkout and are read and written there.
 
-`--project` resolves to the worktree, because `.devforgeai/` is checked out there. Each worktree therefore keeps its own `[active].build`, and the `PreToolUse` `story files --check` hook resolves `--id` from that value. Two runs in two worktrees each guard against their own story's `## Files` set, and a write allowed in one is unaffected by the other. Two concurrent builds also produce no merge conflict on a state file, because the file is untracked in both.
+The split decides one thing for the model: `sh` and the test command of step 6 run in the worktree, because that is where the code under test sits. A `devforgeai` command resolves the same state from either directory, so the run issues its CLI calls from wherever it stands and the gate's command checks reach the worktree on their own through its `[[worktree]]` entry.
+
+`state.toml` exists once, in the main checkout, and the `[[worktree]]` registry is what keeps two concurrent builds apart inside it. The `PreToolUse` write-scope check resolves the story from the path being written: a path under a registered worktree takes that entry's `story`, and a path under neither falls back to `[active].build`. So each run's writes are tested against its own story's `## Files` set however `[active].build` last moved. `phase set build` run from inside a registered worktree sets `[active].build` to that entry's story, so the fallback names the run that is actually working.
 
 ## Parallel builds
 
-Two `/build` runs in two worktrees under `[build].worktree_root` are the supported parallel shape. They share the repository and share nothing else: separate branches, separate working trees, separate `[active].build`, separate reports named after their own stories.
+Two `/build` runs in two worktrees under `[build].worktree_root` are the supported parallel shape. They share the repository and the main checkout's `.devforgeai/`, and are separated inside it by their `[[worktree]]` entries: separate branches, separate working trees, separate write scopes resolved per path, separate reports named after their own stories.
+
+Two guards hold the shape, and each covers what the other cannot. The registry separates the runs once both exist, by resolving every write to the story whose worktree the path sits under. `DFA-E272` separates the file sets before the second worktree exists, by refusing a story whose `## Files` set intersects a live one's — which is what stops two runs from both being entitled to a path the registry would then happily grant each of them on its own branch.
 
 What keeps them from colliding is that a path belongs to at most one of them. `devforgeai story validate --scope sprint` check 9 already forbids two stories of one sprint declaring a shared `Path`, raising `DFA-E237` at the plan gate. That check covers `stories[]` and excludes `deferred[]`, so an overlap can still survive it: a deferred story built anyway, a `## Files` table edited after the plan gate passed, or two sprints open at once.
 
@@ -28,11 +32,11 @@ What keeps them from colliding is that a path belongs to at most one of them. `d
 
 ## The `DFA-E272` refusal
 
-A non-empty intersection is `DFA-E272`, exit 1, naming both story ids and the first shared `Path`. The run stops there with one `Blocked` line carrying that text, and it writes nothing: no worktree, no `phase set`, no file under the project.
+A non-empty intersection is `DFA-E272`, exit 1, naming both story ids and the first shared `Path`. The run stops there with one `Blocked` line carrying that text, and it writes nothing: no worktree, no `[[worktree]]` entry, no `phase set`, no file under the project.
 
 What clears it is the other worktree finishing or going away. `devforgeai worktree list` prints one line per worktree — `<STORY-nnn>  <path>  <branch>  <clean|dirty>  <n> ahead` — which is how the other story is found. `devforgeai worktree remove <STORY-nnn>` removes it, refusing with `DFA-E273` when that worktree holds uncommitted changes or commits absent from `[build].base_ref` unless `--force` is passed, and deleting the branch when it is merged into `base_ref`.
 
-Detection reads worktree directory names rather than a story's frontmatter `status`, because `phase set build` writes `building` into the worktree's copy of the story file while the main checkout keeps the value it had.
+Detection reads worktree directory names rather than a story's frontmatter `status`. The story file is a `.devforgeai/` document and lives in the main checkout alone, so both concurrent runs see one `status` value and it cannot tell them apart.
 
 A worktree created outside `worktree ensure` bypasses the refusal. Both guards then allow the shared path, each run commits it on its own branch, and the collision surfaces as a merge conflict when the second branch merges. A cross-worktree lock is outside the primitives this framework builds on, so none is claimed.
 
@@ -52,4 +56,4 @@ The command stages and commits, so the `pre-commit` hook runs its `doc validate`
 
 ## What a send-back leaves behind
 
-The worktree stays on disk with every commit the run made. The story file keeps `status: building`, `state.toml` keeps `[current].phase` of `build` and `[active].build` of the story id, and the returning `/build STORY-nnn --resume` finds the branch where the stopped run left it.
+The worktree stays on disk with every commit the run made. The story file keeps `status: building`, the main checkout's `state.toml` keeps `[current].phase` of `build`, `[active].build` of the story id, and the story's `[[worktree]]` entry, and the returning `/build STORY-nnn --resume` finds the branch where the stopped run left it.

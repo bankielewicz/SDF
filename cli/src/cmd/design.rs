@@ -46,7 +46,12 @@ pub fn lint(ctx: &mut Ctx, paths: &[PathBuf], tokens_mode: bool) -> Result<Outco
             "unknown option '<paths>'; 'design lint --tokens' reads no frontend file",
         ));
     }
+    // The token file is a document and lives under `.devforgeai/` in the main
+    // checkout; the files it lints are source, and during a worktree build the
+    // source is in the worktree. The two halves resolve against different
+    // directories for that reason.
     let root = ctx.root.clone();
+    let source = ctx.source_root();
     let frontend = ctx.config()?.frontend.clone();
     let (tokens, raw) = design::load_tokens(&root, &frontend.tokens_path)?;
 
@@ -54,8 +59,8 @@ pub fn lint(ctx: &mut Ctx, paths: &[PathBuf], tokens_mode: bool) -> Result<Outco
         let (files, v) = lint_tokens(&root, &raw, &tokens);
         ("tokens", files, 0, v)
     } else {
-        let (set, skipped) = file_set(&root, &frontend, paths);
-        let v = lint_files(&root, &set, &tokens);
+        let (set, skipped) = file_set(&source, &frontend, paths);
+        let v = lint_files(&source, &set, &tokens);
         ("paths", set.len(), skipped, v)
     };
 

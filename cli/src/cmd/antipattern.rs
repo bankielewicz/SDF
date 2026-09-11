@@ -31,14 +31,17 @@ pub fn scan(
         }
     }
 
+    // The rules are a context document at the root; the files they are
+    // matched against are source, which a worktree build keeps elsewhere.
     let root = ctx.root.clone();
+    let source = ctx.source_root();
     let candidates = candidates(ctx, id, paths)?;
     let rules = antipattern::rules(&root)?;
     let applied = rules
         .iter()
         .filter(|r| antipattern::at_or_above(&r.severity, min_severity))
         .count();
-    let matches = antipattern::scan(&rules, &candidates, min_severity, &root);
+    let matches = antipattern::scan(&rules, &candidates, min_severity, &source);
 
     let warnings: Vec<Diag> = matches
         .iter()

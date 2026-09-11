@@ -27,7 +27,7 @@ A returned `payload.testable` of `false` ends the loop. The criteria after the f
 
 ## 7.2 · Run the tests — model
 
-The model runs the string `devforgeai config get stack.test_command` printed at workflow step 6, with Bash, in the worktree. The `PostToolUse` Bash hook matches the command against `config.toml` and runs `devforgeai gate check --phase build --partial`, which writes the report with `partial: true`. `PostToolUse` blocks on no exit code; its result reaches the model as `hookSpecificOutput.additionalContext` after the command. That partial report is what step 7.7 reads.
+The model runs the string `devforgeai config get stack.test_command` printed at workflow step 6, with Bash, in the worktree — that is where the sources and tests sit. The `devforgeai` calls of this cycle need no particular directory; they reach the main checkout's `.devforgeai/` from either. The `PostToolUse` Bash hook matches the command against `config.toml` and runs `devforgeai gate check --phase build --partial`, which writes the report with `partial: true`. `PostToolUse` blocks on no exit code; its result reaches the model as `hookSpecificOutput.additionalContext` after the command. That partial report is what step 7.7 reads.
 
 A non-zero exit code is the expected result: the test asserts something no code does yet.
 
@@ -83,7 +83,7 @@ devforgeai report show <STORY-nnn> build --check build-complexity
 
 Each prints one check entry with a `status` of `pass`, `fail`, or `skip` and a `reason` string. The numbers behind them belong to the gate; what the loop takes from them is which of the two, if either, says `fail`.
 
-Exit 1 on `DFA-E400` means no partial report exists yet, which happens when the `PostToolUse` hook has not fired for this worktree. Running the test command once more makes the hook write it.
+Exit 1 on `DFA-E400` means no partial report exists yet, which happens when the `PostToolUse` hook has not fired for this story. Running the test command once more makes the hook write it, into the main checkout's `.devforgeai/reports/` where the report lives.
 
 ## 7.8 · Refactor — `refactor-surgeon`
 

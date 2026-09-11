@@ -317,3 +317,68 @@ fn the_check_skips_when_the_story_scope_has_no_story_subject() {
         "the reason names why there is no file set: {report}"
     );
 }
+
+/// Register a worktree for `STORY-014` and make it the active build story.
+fn register_worktree(p: &Project, dir: &str) {
+    std::fs::create_dir_all(p.root().join(dir)).expect("mkdir");
+    let mut s = p.state();
+    s.current.phase = "build".to_string();
+    s.current.id = "STORY-014".to_string();
+    s.active.build = "STORY-014".to_string();
+    s.worktree = vec![devforgeai::state::WorktreeEntry {
+        story: "STORY-014".to_string(),
+        path: dir.to_string(),
+        branch: "story/STORY-014".to_string(),
+        created_at: "2026-09-10T14:02:11Z".to_string(),
+    }];
+    p.write_state(&s);
+}
+
+#[test]
+fn scan_reads_the_worktree_during_a_registered_build() {
+    let p = Project::new();
+    // The rules are a context document and stay at the root.
+    p.write(
+        ".devforgeai/context/anti-patterns.md",
+        &index("| AP-001 | layer | high | src/**/*.rs | literal | TcpStream | CON-001 |\n"),
+    );
+    register_worktree(&p, "wt");
+    // The offending source is in the worktree, where a Build run's work is.
+    p.write(
+        "wt/src/place_order.rs",
+        "fn place() {\n    TcpStream::connect();\n}\n",
+    );
+
+    let (code, _, err) = run(
+        &p,
+        &["antipattern", "scan", "--paths", "src/place_order.rs"],
+    );
+
+    assert_eq!(code, 1, "the match is found: {err}");
+    assert!(err.contains("DFA-E270"), "stderr was {err}");
+    assert!(
+        err.contains("place_order.rs"),
+        "the worktree's file was read: {err}"
+    );
+}
+
+#[test]
+fn scan_finds_nothing_when_only_the_root_holds_the_match() {
+    let p = Project::new();
+    p.write(
+        ".devforgeai/context/anti-patterns.md",
+        &index("| AP-001 | layer | high | src/**/*.rs | literal | TcpStream | CON-001 |\n"),
+    );
+    register_worktree(&p, "wt");
+    // A stale copy at the root is not the build's source, so it is not scanned.
+    p.write(
+        "src/place_order.rs",
+        "fn place() {\n    TcpStream::connect();\n}\n",
+    );
+
+    let (code, _, err) = run(
+        &p,
+        &["antipattern", "scan", "--paths", "src/place_order.rs"],
+    );
+    assert_eq!(code, 0, "stderr was {err}");
+}

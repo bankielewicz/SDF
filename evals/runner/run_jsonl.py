@@ -23,7 +23,22 @@ What the child sees (AUDIT-5 EVL-010 to EVL-014, EVL-051):
   the transcript a grader sees carries tool calls, tool inputs and tool results
   and not only the final ``result`` string;
 * the raw streams are written to a log directory beside the workspaces, never
-  inside one, so no grader's tree walk counts them as a write.
+  inside one, so no grader's tree walk counts them as a write;
+* ``config.toml`` is put into the binary's canonical form before the run, so the
+  SessionStart ``stack detect`` changes nothing the tamper guard can see;
+* every skill the skill under test reaches through the Skill tool is installed
+  beside it, under its own frontmatter name.
+
+Slash names collide, and the workspace is the only defence. A skill installed at
+``.claude/skills/<name>/`` takes the slash name ``<name>``, and a user-level or
+plugin skill of the same name on the machine running the eval shadows or blocks
+it. Measured: the hooks-on ``ex-01`` run carried only ``.claude/skills/explore/``
+and its step 6 asked the Skill tool for ``design``; Claude Code resolved that to
+a different ``design`` on this machine and refused — "Skill design cannot be used
+with Skill tool due to disable-model-invocation" — and the run stalled. Installing
+the invoked skill into the workspace puts the framework's own copy first. It does
+not make the eval immune to a collision on the *outer* name, which is a property
+of the machine.
 
 Hooks during an eval (EVL-003). By default the workspace settings carry the
 framework's own hook block from ``hooks/settings.hooks.json`` with
@@ -95,7 +110,16 @@ rewrite the framework itself performs: ``state.toml`` is rewritten by every
 ``phase set`` and is reported only when it was deleted, and ``config.toml`` is
 compared by content with ``generated_at`` removed, because the SessionStart
 hook runs ``stack detect`` on every hooks-on run. A changed ``[[stack]]``
-command or coverage floor is still tampering. No grader reads these files today, so tampering buys nothing — but that
+command or coverage floor is still tampering.
+
+That content comparison is exact on 3.11+, where ``tomllib`` parses the file,
+and textual below it. What makes the textual form exact in practice is that the
+runner runs ``stack detect`` once itself, after materialising and before taking
+the baseline: the file is then already in the binary's canonical form, so the
+SessionStart detect rewrites nothing and the comparison never has to see a
+reformatting. Three acceptance runs were marked ``tampered`` before that landed.
+
+No grader reads these files today, so tampering buys nothing — but that
 is a property of the current graders, not of the harness, and this makes it one.
 
 Preamble refusals reach the transcript as a plain string. Claude Code refuses a
@@ -575,6 +599,113 @@ def cli_defaults(binary, framework):
     return files
 
 
+def canonicalise_config(workspace, binary):
+    """Run ``stack detect`` once so ``config.toml`` is already in canonical form.
+
+    A materialised fixture is hand-written and the binary's form is not: it
+    carries `stack = []`, `layer = []`, `verifier = []`, `[frontend]` globs and a
+    `degraded` the merged tables decide. The framework's SessionStart hook runs
+    `stack detect` on every hooks-on run, which rewrites the file into that form
+    once — and the tamper guard, whose 3.10 fallback compares text, reads the
+    reformatting as a model editing the gate's inputs. Three acceptance runs were
+    marked `tampered` for exactly that.
+
+    Detecting here, before the baseline is taken, makes the SessionStart detect a
+    no-op (measured: `written = false`, bytes identical) and byte equality exact
+    for all four guarded paths. Returns the file's ``degraded`` value, or
+    ``None`` when there is no config or the binary did not run.
+    """
+    config = os.path.join(workspace, ".devforgeai", "config.toml")
+    if not os.path.isfile(config):
+        return None
+    try:
+        subprocess.run([binary, "stack", "detect", "--quiet"], cwd=workspace,
+                       capture_output=True, text=True, timeout=300)
+    except (OSError, subprocess.SubprocessError):
+        # A stand-in binary in a unit test cannot detect; the workspace is then
+        # exactly what the case seeded, as before.
+        return None
+    return config_degraded(config)
+
+
+def config_degraded(path):
+    """The ``degraded`` top-level value of a config file, or ``None``."""
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            for line in handle:
+                if line.startswith("degraded"):
+                    return "true" in line.split("=", 1)[-1]
+    except OSError:
+        pass
+    return None
+
+
+# A skill body reaching another skill through the Skill tool: "invoke the
+# `design` skill", "the `design` skill through the Skill tool". Explore step 6
+# and Plan steps 6 and R3 are the three such call sites today.
+SKILL_CALL = re.compile(
+    r"invoke(?:s)?\s+the\s+`([a-z][a-z0-9-]*)`\s+skill"
+    r"|`([a-z][a-z0-9-]*)`\s+skill\s+through\s+the\s+Skill\s+tool")
+
+
+def invoked_skills(skill_dir, root):
+    """The slash names this skill invokes through the Skill tool.
+
+    Each resolves to a sibling under ``skills/`` by its frontmatter ``name``,
+    and the workspace needs it installed: a workspace holding only the skill
+    under test lets Claude Code resolve the name against whatever else is on the
+    machine. Measured on the hooks-on `ex-01` run — the workspace carried only
+    `.claude/skills/explore/`, step 6 asked for `design`, and Claude Code found
+    a different `design` skill on this machine and refused it with "Skill design
+    cannot be used with Skill tool due to disable-model-invocation". The run
+    stalled there.
+    """
+    path = os.path.join(skill_dir, "SKILL.md")
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            body = handle.read()
+    except OSError:
+        return []
+    wanted = []
+    for match in SKILL_CALL.finditer(body):
+        name = match.group(1) or match.group(2)
+        if name and name not in wanted:
+            wanted.append(name)
+    mine = installed_skill_name(skill_dir)
+    return [name for name in wanted if name != mine]
+
+
+def skill_source(name, root):
+    """The directory under ``skills/`` whose frontmatter ``name`` is ``name``."""
+    directory = os.path.join(root, "skills")
+    if not os.path.isdir(directory):
+        return None
+    for entry in sorted(os.listdir(directory)):
+        candidate = os.path.join(directory, entry)
+        if os.path.isdir(candidate) and installed_skill_name(candidate) == name:
+            return candidate
+    return None
+
+
+def install_skill(source, claude_dir, root):
+    """Copy one skill under its frontmatter name, with the agents it owns."""
+    name = installed_skill_name(source)
+    target = os.path.join(claude_dir, "skills", name)
+    if os.path.isdir(target):
+        return name
+    shutil.copytree(source, target,
+                    ignore=shutil.ignore_patterns("__pycache__", "evals"))
+    agents = owned_agents(source, root)
+    if agents:
+        os.makedirs(os.path.join(claude_dir, "agents"), exist_ok=True)
+        for agent in agents:
+            origin = os.path.join(root, "agents", agent + ".md")
+            if os.path.isfile(origin):
+                shutil.copyfile(origin,
+                                os.path.join(claude_dir, "agents", agent + ".md"))
+    return name
+
+
 def make_workspace(case, files, options):
     """Build one workspace and return (path, environment home)."""
     skill_dir = options.skill
@@ -621,10 +752,28 @@ def make_workspace(case, files, options):
                 os.path.join(options.framework_root, "agents", name + ".md"),
                 os.path.join(claude_dir, "agents", name + ".md"))
 
+    # Every skill this one reaches through the Skill tool, plus whatever the
+    # case names in `setup.skills`, installed under its own frontmatter name.
+    wanted = list(invoked_skills(skill_dir, options.framework_root))
+    for extra in (case.get("setup") or {}).get("skills", []):
+        if extra not in wanted:
+            wanted.append(extra)
+    for name in wanted:
+        source = skill_source(name, options.framework_root)
+        if source is None:
+            raise CaseError(
+                "%s invokes the %r skill and no directory under skills/ carries "
+                "that frontmatter name" % (skill_name, name))
+        install_skill(source, claude_dir, options.framework_root)
+
     workspace_settings(case, claude_dir, options)
     git_spec = (case.get("setup") or {}).get("git")
     if git_spec:
         init_git(workspace, git_spec)
+
+    # Before the guard baseline: the SessionStart hook would otherwise do this
+    # rewrite mid-run and the guard would call it tampering.
+    canonicalise_config(workspace, options.devforgeai_bin)
     # Decision 62: a home inside the workspace, so a debug build reads no trust
     # pin from the real machine. A release build ignores it (no `test-home`
     # feature), which is why hooks-on runs are gated on a real pin instead.
@@ -1094,13 +1243,25 @@ def preflight_case(case, files, options, skill_name):
     The workspace is removed afterwards, because the calls mutate it.
     """
     commands = case.get("preflight")
-    if not commands:
+    if not commands and case.get("degraded") is None:
         print("SKIP  %s  no preflight declared" % case["id"])
         return True
     workspace = None
     try:
         workspace, home = make_workspace(case, files, options)
         environment = child_environment(home, options.devforgeai_bin, "inherit")
+
+        # `make_workspace` has already run `stack detect`. A case that seeds
+        # manual stacks must not come out of it degraded: a degraded config
+        # skips every command check, so the gate would pass on nothing.
+        wanted = case.get("degraded")
+        if wanted is not None:
+            actual = config_degraded(
+                os.path.join(workspace, ".devforgeai", "config.toml"))
+            if actual != wanted:
+                print("FAIL  %s  config.toml degraded is %r after stack detect, "
+                      "the case expects %r" % (case["id"], actual, wanted))
+                return False
         for entry in commands:
             if isinstance(entry, str):
                 command, wanted_exit, wanted_code, forbidden = entry, 0, "", ""
@@ -1180,7 +1341,11 @@ def parse_args(argv):
     parser.add_argument("--graders", default=None)
     parser.add_argument("--out", default=None)
     parser.add_argument("--model", default="sonnet")
-    parser.add_argument("--timeout", type=int, default=900)     # EVL-014
+    # EVL-014, raised after the hooks-on runs: 900 came from `ex-08` measuring
+    # 828s with hooks off, and enforcement adds a gate evaluation and a Stop
+    # hook to every turn. PLAN-01 measured 850s, Verify and Constitute timed out
+    # outright. A case may still narrow or widen it with its own `timeout`.
+    parser.add_argument("--timeout", type=int, default=1500)
     parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--filter", dest="filter", default="*")
     parser.add_argument("--case", dest="case", action="append", default=[])

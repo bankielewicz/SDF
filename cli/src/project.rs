@@ -55,10 +55,71 @@ pub fn discover(cwd: &Path) -> Option<PathBuf> {
     loop {
         let dot = here.join(DOT);
         if dot.is_dir() && !is_trust_store_only(&dot) {
-            return Some(normalise(here));
+            return Some(main_checkout_of(here));
         }
         here = here.parent()?;
     }
+}
+
+/// The main checkout of `found`, when `found` is a linked git worktree.
+///
+/// A worktree is a second checkout of the same repository, so it carries its
+/// own tracked copy of `.devforgeai/` — the documents, `config.toml`,
+/// `gates.toml` — and discovery stops there. `state.toml` is the exception:
+/// it is gitignored and exists in the main checkout alone, because a phase
+/// record in two places is two phase records. A Build run inside a worktree
+/// therefore has to resolve to the main checkout, or `phase set` writes one
+/// copy while the Stop hook, whose working directory is the session root,
+/// reads the other and blocks on a phase the project has already left.
+///
+/// The absent `state.toml` is the signal, and it is a file test rather than a
+/// subprocess, so the common case costs nothing. Only when it is missing does
+/// this ask git where the real checkout is.
+fn main_checkout_of(found: &Path) -> PathBuf {
+    if found.join(DOT).join(STATE).is_file() {
+        return normalise(found);
+    }
+    match linked_worktree_main(found) {
+        // The main checkout is only the answer when it is a project too.
+        Some(main) if main.join(DOT).is_dir() => normalise(&main),
+        _ => normalise(found),
+    }
+}
+
+/// The main checkout `dir` is a linked worktree of, or `None`.
+///
+/// In the main checkout `--git-dir` and `--git-common-dir` name the same
+/// directory; in a linked worktree the first is `<main>/.git/worktrees/<name>`
+/// and the second is `<main>/.git`. A cwd that is not a work tree at all, or
+/// where git is not on `PATH`, answers `None` and discovery proceeds as it
+/// always did.
+fn linked_worktree_main(dir: &Path) -> Option<PathBuf> {
+    let ask = |flag: &str| -> Option<PathBuf> {
+        let out = std::process::Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(["rev-parse", flag])
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        let text = String::from_utf8(out.stdout).ok()?.trim().to_string();
+        if text.is_empty() {
+            return None;
+        }
+        let p = PathBuf::from(&text);
+        Some(if p.is_absolute() { p } else { dir.join(p) })
+    };
+
+    let git_dir = ask("--git-dir")?;
+    let common = ask("--git-common-dir")?;
+    if normalise(&git_dir) == normalise(&common) {
+        // The main checkout: nothing to redirect to.
+        return None;
+    }
+    // `--git-common-dir` is `<main>/.git`, so its parent is the checkout.
+    common.parent().map(Path::to_path_buf)
 }
 
 /// True when this `.devforgeai/` is the trust store and not a project.

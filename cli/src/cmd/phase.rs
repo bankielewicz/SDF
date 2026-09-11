@@ -296,6 +296,10 @@ pub fn set(
     let s = ctx.state_mut()?;
     s.current.phase = phase.to_string();
     s.current.id = id.to_string();
+    // `[active].build` is the story the current run is on, and `phase set
+    // build` is how a run says which. Called from inside a registered
+    // worktree it is also how switching directories switches the story: the
+    // state it writes is the main checkout's, so both checkouts agree.
     s.active.set(phase, id);
     s.stop_hook.block_count = 0;
     s.stop_hook.blocked_phase = String::new();

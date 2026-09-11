@@ -529,7 +529,7 @@ pub const VERIFIER_ROWS: &[(&str, &str, &str, &str, bool)] = &[
         "flow-integrity-auditor",
         "verifiers.flow_integrity",
         "flows",
-        false,
+        true,
     ),
     (
         "constitute",
@@ -906,7 +906,6 @@ required = true
         assert_eq!(
             optional,
             vec![
-                "flow-integrity-auditor",
                 "architecture-reviewer",
                 "alignment-auditor",
                 "requirement-coverage-auditor",

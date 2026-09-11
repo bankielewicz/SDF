@@ -692,14 +692,21 @@ fn pre_tool_use(ctx: &mut Ctx, p: &Payload) -> Result<Outcome, CliError> {
     }
 
     // The declared-set arm: a path outside `.devforgeai/` during a Build run
-    // is tested against the active story's `## Files` table.
+    // is tested against a story's `## Files` table.
+    //
+    // Which story is the path's own, not the session's: with two worktrees
+    // open, a write into `wt/STORY-015/` belongs to STORY-015 however far
+    // `[active].build` has moved. Falling back to the active story is what
+    // covers the ordinary single-checkout run, where there is no worktree to
+    // resolve against.
     if !inside && ctx.state()?.current.phase == "build" {
         actions.push("story files --check");
+        let owner = ctx.worktree_story_of(path);
         let args = crate::cli::StoryFilesArgs {
             check: Some(path.to_path_buf()),
             list: false,
             diff: false,
-            id: None,
+            id: owner,
             base: None,
         };
         match cmd::story::files(ctx, &args) {

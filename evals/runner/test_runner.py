@@ -388,9 +388,6 @@ class RunnerTestCase(unittest.TestCase):
                               os.path.join(self.root, "nope.exe")])
         self.assertEqual(code, 3)
 
-    def test_timeout_default_is_nine_hundred(self):
-        self.assertEqual(self._options().timeout, 900)
-
     def test_a_case_timeout_overrides_the_run_default(self):
         cases = [dict(CASES[0]), dict(CASES[1])]
         cases[0]["timeout"] = 1500
@@ -1057,6 +1054,92 @@ documented stop-path case instead, which is what this asserts.
                 continue
             self.assertGreaterEqual(sendbacks, 2,
                                     "%s has %d SEND BACK cases" % (skill, sendbacks))
+
+    # -- canonical config, invoked skills ------------------------------------
+
+    def test_stack_detect_runs_before_the_guard_baseline(self):
+        import subprocess
+        calls = []
+        real = subprocess.run
+
+        def spy(argv, *a, **kw):
+            if isinstance(argv, list) and argv[1:3] == ["stack", "detect"]:
+                calls.append(kw.get("cwd"))
+            return real(argv, *a, **kw)
+
+        run_jsonl.subprocess.run = spy
+        self.addCleanup(setattr, run_jsonl.subprocess, "run", real)
+        options = self._options(["--case", "c1"])
+        case = dict(self._cases()[0])
+        case["setup"] = {"files": dict(case["setup"]["files"])}
+        case["setup"]["files"][".devforgeai/config.toml"] = "degraded = false\n"
+        files = run_jsonl.resolve_fixtures(case["setup"]["files"], self.skill)
+        workspace, _home = run_jsonl.make_workspace(case, files, options)
+        self.assertIn(workspace, calls)
+
+    def test_config_degraded_reads_the_flag(self):
+        path = os.path.join(self.root, "c.toml")
+        write(path, 'schema = "x"\ndegraded = true\n')
+        self.assertIs(run_jsonl.config_degraded(path), True)
+        write(path, 'schema = "x"\ndegraded = false\n')
+        self.assertIs(run_jsonl.config_degraded(path), False)
+        self.assertIsNone(run_jsonl.config_degraded(
+            os.path.join(self.root, "absent.toml")))
+
+    def test_preflight_fails_when_degraded_does_not_match(self):
+        write(self.cases_path, json.dumps(
+            {"id": "d1", "prompt": "p", "degraded": False,
+             "setup": {"files": {".devforgeai/config.toml":
+                                 'schema = "x"\ndegraded = true\n'}},
+             "expect": {"grader": "ok_grader"}}) + "\n")
+        code, text = self._main(["--preflight"])
+        self.assertEqual(code, 2)
+        self.assertIn("degraded is True", text)
+        self.assertIn("expects False", text)
+
+    def test_timeout_default_is_fifteen_hundred(self):
+        self.assertEqual(self._options().timeout, 1500)
+
+    def test_a_skill_invoked_through_the_skill_tool_is_installed_too(self):
+        # A second skill in the tree whose frontmatter name is `design`, which
+        # the skill under test says it invokes. The hooks-on ex-01 run stalled
+        # because the workspace held only the skill under test and Claude Code
+        # resolved `design` against the machine instead.
+        other = os.path.join(self.root, "skills", "designing-interfaces")
+        write(os.path.join(other, "SKILL.md"), "---\nname: design\n---\n")
+        write(os.path.join(other, "evals", "cases.jsonl"), "")
+        write(os.path.join(self.skill, "SKILL.md"),
+              "---\nname: explore\n---\n\n"
+              "Through the Skill tool, invoke the `design` skill with the request.\n")
+        self.assertEqual(
+            run_jsonl.invoked_skills(self.skill, self.root), ["design"])
+        options = self._options(["--case", "c1"])
+        workspace, _home = run_jsonl.make_workspace(
+            self._cases()[0], self._files("c1"), options)
+        installed = os.path.join(workspace, ".claude", "skills")
+        self.assertEqual(sorted(os.listdir(installed)), ["design", "explore"])
+        self.assertTrue(os.path.isfile(
+            os.path.join(installed, "design", "SKILL.md")))
+        self.assertFalse(os.path.isdir(
+            os.path.join(installed, "design", "evals")))
+
+    def test_setup_skills_installs_an_explicit_extra(self):
+        other = os.path.join(self.root, "skills", "validating-quality")
+        write(os.path.join(other, "SKILL.md"), "---\nname: verify\n---\n")
+        options = self._options(["--case", "c1"])
+        case = dict(self._cases()[0])
+        case["setup"] = dict(case["setup"], skills=["verify"])
+        workspace, _home = run_jsonl.make_workspace(
+            case, self._files("c1"), options)
+        self.assertTrue(os.path.isfile(os.path.join(
+            workspace, ".claude", "skills", "verify", "SKILL.md")))
+
+    def test_an_invoked_skill_that_does_not_exist_stops_the_case(self):
+        write(os.path.join(self.skill, "SKILL.md"),
+              "---\nname: explore\n---\n\ninvoke the `nowhere` skill\n")
+        options = self._options(["--case", "c1"])
+        with self.assertRaises(run_jsonl.CaseError):
+            run_jsonl.make_workspace(self._cases()[0], self._files("c1"), options)
 
     # -- installed skill name ------------------------------------------------
 

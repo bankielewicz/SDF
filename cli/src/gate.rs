@@ -183,6 +183,22 @@ fn render(v: &Value) -> String {
     }
 }
 
+/// Resolve a `gates.toml` path that names a file in the source tree rather than
+/// a `.devforgeai/` document.
+///
+/// Spec 245 splits the two by the leading dot: a relative path resolves against
+/// `.devforgeai/`, and one beginning with `.` against the project root, which
+/// during a Build run in a worktree is that worktree. The `.devforgeai/` half
+/// never moves: the state, the config, the gates and the documents live in the
+/// main checkout whatever the build is doing.
+fn source_path(ctx: &mut Ctx, rel: &str) -> PathBuf {
+    if rel.starts_with('.') {
+        ctx.source_root().join(rel)
+    } else {
+        ctx.doc_path(rel)
+    }
+}
+
 /// Evaluate one condition inline table.
 ///
 /// The three subjects are exclusive and `gates::condition` refuses a table that
@@ -685,12 +701,12 @@ fn expect_empty(
 }
 
 /// Expand a list of document patterns into concrete paths under the project.
-fn expand_docs(ctx: &Ctx, patterns: &[String], id: &str, phase: &str) -> Vec<PathBuf> {
+fn expand_docs(ctx: &mut Ctx, patterns: &[String], id: &str, phase: &str) -> Vec<PathBuf> {
     let mut out: Vec<PathBuf> = Vec::new();
     for raw in patterns {
         let rel = substitute(raw, id, phase);
         if !rel.contains('*') && !rel.contains('?') {
-            out.push(ctx.doc_path(&rel));
+            out.push(source_path(ctx, &rel));
             continue;
         }
         let Ok(glob) = globset::Glob::new(&rel) else {
@@ -701,12 +717,13 @@ fn expand_docs(ctx: &Ctx, patterns: &[String], id: &str, phase: &str) -> Vec<Pat
         // beginning with `.`, which resolves against the project root. A glob
         // follows the same rule as a literal path, so the two branches agree.
         if rel.starts_with('.') {
-            for entry in walkdir::WalkDir::new(&ctx.root)
+            let src = ctx.source_root();
+            for entry in walkdir::WalkDir::new(&src)
                 .into_iter()
                 .filter_map(Result::ok)
                 .filter(|e| e.file_type().is_file())
             {
-                let candidate = project::rel_display(&ctx.root, entry.path());
+                let candidate = project::rel_display(&src, entry.path());
                 if matcher.is_match(&candidate) {
                     out.push(entry.path().to_path_buf());
                 }
@@ -899,7 +916,10 @@ fn file_exists(ctx: &mut Ctx, c: &Check, id: &str, phase: &str) -> Result<Outcom
         .iter()
         .map(|p| {
             let rel = substitute(p, id, phase);
-            let full = ctx.doc_path(&rel);
+            // A leading-dot path names a file in the source tree rather than a
+            // `.devforgeai/` document, so during a worktree build it is the
+            // worktree that holds it.
+            let full = source_path(ctx, &rel);
             (rel, full)
         })
         .collect();
@@ -2174,10 +2194,11 @@ fn files_declared(ctx: &mut Ctx, c: &Check, id: &str) -> Result<Outcome, CliErro
             "DFA-E239 gate subject '{id}' is not a story, so no declared file set exists"
         )));
     }
-    if !crate::git::is_work_tree(&ctx.root) {
+    let src = ctx.source_root();
+    if !crate::git::is_work_tree(&src) {
         return Ok(Outcome::fail(format!(
             "DFA-E239 {} is not a git work tree, so the changed file set cannot be read",
-            ctx.root.display()
+            src.display()
         )));
     }
     let base = c.str_key("base", "");
@@ -2385,7 +2406,10 @@ fn run_for(
 
 /// `tests_pass`: every named stack's `test_command` exits 0.
 fn tests_pass(ctx: &mut Ctx, c: &Check) -> Result<Outcome, CliError> {
-    let root = ctx.root.clone();
+    // The source tree, which is the registered worktree while Build runs in
+    // one; every `.devforgeai/` document still resolves against the project
+    // root.
+    let root = ctx.source_root();
     let allow_empty = c.bool_key("allow_empty", false);
     let names = c.arr_key("stacks", &[]);
     let cfg = ctx.config()?.clone();
@@ -2487,7 +2511,10 @@ impl Commanded {
 /// `lint_clean` and `complexity_clean`: an empty command is a skip, a non-zero
 /// exit is a failure.
 fn command_check(ctx: &mut Ctx, c: &Check, kind: Commanded) -> Result<Outcome, CliError> {
-    let root = ctx.root.clone();
+    // The source tree, which is the registered worktree while Build runs in
+    // one; every `.devforgeai/` document still resolves against the project
+    // root.
+    let root = ctx.source_root();
     let names = c.arr_key("stacks", &[]);
     let cfg = ctx.config()?.clone();
     let stacks = selected_stacks(&cfg, &names);
@@ -2576,7 +2603,10 @@ fn runs_evidence(mut runs: Vec<Value>) -> Value {
 fn coverage_min(ctx: &mut Ctx, c: &Check, no_run: bool) -> Result<Outcome, CliError> {
     use crate::coverage;
 
-    let root = ctx.root.clone();
+    // The source tree, which is the registered worktree while Build runs in
+    // one; every `.devforgeai/` document still resolves against the project
+    // root.
+    let root = ctx.source_root();
     let cfg = ctx.config()?.clone();
     let source = c.str_key("source", "run");
     // `--no-run` executes no command, so the check parses the artifact already
@@ -2857,7 +2887,10 @@ fn deploy_manifest(ctx: &mut Ctx, c: &Check, id: &str, phase: &str) -> Result<Ou
         .unwrap_or("")
         .to_string();
 
-    let root = ctx.root.clone();
+    // The source tree, which is the registered worktree while Build runs in
+    // one; every `.devforgeai/` document still resolves against the project
+    // root.
+    let root = ctx.source_root();
     let evidence = serde_yaml_ng::to_value(serde_json::json!({
         "platform": platform,
         "manifests": manifests.len(),
@@ -3178,7 +3211,10 @@ fn docs_cover(ctx: &mut Ctx, c: &Check, id: &str, phase: &str) -> Result<Outcome
         return Ok(Outcome::skip("no_api_symbols_command"));
     }
 
-    let root = ctx.root.clone();
+    // The source tree, which is the registered worktree while Build runs in
+    // one; every `.devforgeai/` document still resolves against the project
+    // root.
+    let root = ctx.source_root();
     let stack = ctx.config()?.stack.first().cloned().unwrap_or_default();
     let run = crate::run::run(
         &root,

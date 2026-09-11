@@ -75,6 +75,9 @@ pub struct State {
     /// Plan's phase-scoped fields.
     #[serde(default)]
     pub plan: PlanState,
+    /// The git worktrees this project has open, one entry per story.
+    #[serde(default)]
+    pub worktree: Vec<WorktreeEntry>,
     /// The result of the last `gate check`.
     #[serde(default)]
     pub last_gate: LastGate,
@@ -228,6 +231,34 @@ pub struct PlanState {
     pub epic: String,
 }
 
+/// One `[[worktree]]` entry: a git worktree this project has open.
+///
+/// `state.toml` lives in the main checkout and nowhere else. Copying it into a
+/// worktree gave the project two phase records: `phase set build` inside the
+/// worktree updated the copy, and the Stop hook — whose working directory is
+/// the session root — read the original and blocked on the phase the run had
+/// already left. One record, in the main checkout, and this table is how it
+/// knows which checkouts are open and which story each is for.
+///
+/// It is a table rather than one field because non-overlapping stories are
+/// meant to be built in parallel; that is what the `DFA-E272` overlap refusal
+/// exists to police. `[active].build` names the story the current run is on.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct WorktreeEntry {
+    /// The `STORY-nnn` this worktree was opened for.
+    #[serde(default)]
+    pub story: String,
+    /// The worktree directory, relative to the project root.
+    #[serde(default)]
+    pub path: String,
+    /// The branch `git worktree add` created.
+    #[serde(default)]
+    pub branch: String,
+    /// RFC 3339 UTC.
+    #[serde(default)]
+    pub created_at: String,
+}
+
 /// `[last_gate]`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LastGate {
@@ -352,6 +383,7 @@ impl Default for State {
             explore: ExploreState::default(),
             constitute: ConstituteState::default(),
             plan: PlanState::default(),
+            worktree: Vec::new(),
             last_gate: LastGate::default(),
             last_handoff: LastHandoff::default(),
             stop_hook: StopHook::default(),

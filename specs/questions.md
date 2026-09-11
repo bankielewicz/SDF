@@ -276,3 +276,17 @@ Then `trust verify` failed mid-run with `DFA-E504`, the source-digest drift. The
 What the run did surface is a defect: the trust-failure branch of the Stop hook kept blocking past three, because it carried its own exit condition rather than sharing the gate branch's counter. Six blocks between the two branches reaches the harness's eight-block ceiling, which shows the user nothing. F2 is folding the trust branch into the shared three-block budget, and `specs/01-cli.md` `## Hooks` and conventions §7 and §8 now state that the budget is one counter both branches spend.
 
 **What this leaves.** The suite's four verification gates — dry-run materialisation, preamble exit 0, `config.toml` and `state.toml` parse, and `gates.toml` loading by the real binary across every declared phase — exist because six of the seven failures would have been caught by them before a paid run. They are cheap and they run first. Hooks-on measurement still waits on the pin of Q-016.
+
+---
+
+## Q-023 · skills · answered
+
+**Ambiguity.** An eval run reached the Design phase and the skill that answered was not ours. The nine slash names are common English words, and a user-level or plugin skill of the same name shadows the project's for the `Skill` tool.
+
+**What was measured.** `design` collided. A skill installed at `~/.claude/skills/design/` — or exposed by a plugin under that name — takes the name, and a project skill at `.claude/skills/design/` does not win. So `exploring-ideas` invoking `design` in sketch mode reached someone else's skill, which knows nothing of `sketch-request.json`, and the step returned content the workflow could not use rather than failing outright. The failure is quiet, which is the part worth recording: a shadowed skill runs and returns something.
+
+**Where it is fixed.** In the runner, now: a case's workspace installs every skill the case's own skill co-invokes, not just the one under test, so the eval measures our Design rather than whatever the host machine has. In a real project the fix is the user's — remove or rename the colliding skill, since two skills cannot hold one name and the framework cannot claim it.
+
+**Proposed, not built.** `init` could check `~/.claude/skills/<name>` and the installed plugins for each of the nine names and print a warning naming the collisions and what they shadow. It is a warning rather than a refusal: the user's own skill may be the one they want, and `init` has no standing to decide that. This is recorded as a proposal because nothing has been written for it.
+
+**If you decide otherwise** and want the nine renamed to something unlikely to collide — `dfa-design`, or similar — say so. It is the same mechanical pass as Q-021, and it moves the frontmatter `name` of nine skills plus the `UserPromptExpansion` matcher; `produced_by` is the directory name and does not move.

@@ -379,3 +379,67 @@ fn the_design_tokens_check_narrows_to_its_paths_key() {
         String::from_utf8_lossy(&out.stderr)
     );
 }
+
+/// Register a worktree for `STORY-014` and make it the active build story, as
+/// `worktree ensure` plus `phase set build` leave the main checkout.
+fn register_worktree(p: &Project, dir: &str) {
+    std::fs::create_dir_all(p.root().join(dir)).expect("mkdir");
+    let mut s = p.state();
+    s.current.phase = "build".to_string();
+    s.current.id = "STORY-014".to_string();
+    s.active.build = "STORY-014".to_string();
+    s.worktree = vec![devforgeai::state::WorktreeEntry {
+        story: "STORY-014".to_string(),
+        path: dir.to_string(),
+        branch: "story/STORY-014".to_string(),
+        created_at: "2026-09-10T14:02:11Z".to_string(),
+    }];
+    p.write_state(&s);
+}
+
+#[test]
+fn lint_reads_the_worktree_during_a_registered_build() {
+    let p = Project::new();
+    p.write(".devforgeai/brand/tokens.json", TOKENS);
+    register_worktree(&p, "wt");
+    // The violating file is in the worktree, where a Build run's source is.
+    // Nothing at the project root matches the frontend globs at all.
+    p.write("wt/src/ui/Button.css", ".b { color: #ff0000; }\n");
+
+    let (code, out, err) = run(&p, &["design", "lint"]);
+
+    // The token file is a document and stays at the root; the files it lints
+    // are source and moved with the worktree.
+    assert_eq!(code, 1, "the literal colour is found: {out} {err}");
+    assert!(err.contains("DFA-E240"), "stderr was {err}");
+    assert!(
+        err.contains("Button.css"),
+        "the worktree's file was read: {err}"
+    );
+}
+
+#[test]
+fn lint_reads_the_root_when_no_worktree_is_registered() {
+    let p = Project::new();
+    p.write(".devforgeai/brand/tokens.json", TOKENS);
+    p.write("src/ui/Button.css", ".b { color: #ff0000; }\n");
+
+    // The control: with no worktree open the two directories are the same one.
+    let (code, _, err) = run(&p, &["design", "lint"]);
+    assert_eq!(code, 1, "stderr was {err}");
+    assert!(err.contains("Button.css"), "{err}");
+}
+
+#[test]
+fn lint_skips_a_root_copy_during_a_registered_build() {
+    let p = Project::new();
+    p.write(".devforgeai/brand/tokens.json", TOKENS);
+    register_worktree(&p, "wt");
+    // A stale copy at the project root is not the build's source. The default
+    // globs match at any depth, so walking the root would find the worktree's
+    // files as well and the positive case alone would not tell the two apart.
+    p.write("src/ui/Button.css", ".b { color: #ff0000; }\n");
+
+    let (code, _, err) = run(&p, &["design", "lint"]);
+    assert_eq!(code, 0, "the root copy is not linted: {err}");
+}

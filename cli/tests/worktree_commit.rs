@@ -130,7 +130,35 @@ fn repo() -> Project {
         .expect("git init");
     assert!(out.status.success(), "git init: {out:?}");
     p.write("README.md", "base\n");
-    p.write(".gitignore", "wt/\n");
+    p.write(
+        ".gitignore",
+        "wt/
+.devforgeai/state.toml
+",
+    );
+    // `phase set build` runs the plan gate, which resolves the story through
+    // the sprint that lists it.
+    p.write(
+        ".devforgeai/stories/sprint.yaml",
+        "schema: devforgeai/sprint/1
+id: SPRINT-001
+phase: plan
+status: active
+produced_by: planning-work
+consumes: []
+open_questions: []
+epic: EPIC-001
+stories:
+  - id: STORY-014
+    status: building
+  - id: STORY-015
+    status: building
+",
+    );
+    p.write(
+        ".devforgeai/reports/SPRINT-001-plan.yaml",
+        &common::report("SPRINT-001", "plan", "PASS"),
+    );
     git(&p, &["add", "-A"]);
     let out = git(&p, &["commit", "-m", "base"]);
     assert!(out.status.success(), "first commit: {out:?}");
@@ -140,16 +168,22 @@ fn repo() -> Project {
 // -------------------------------------------------------------- worktree ensure
 
 #[test]
-fn ensure_creates_the_worktree_and_seeds_the_state_file() {
+fn ensure_creates_the_worktree_and_registers_it() {
     let p = repo();
     let h = Home::new();
     let (code, out, err) = run(&p, &h, &["worktree", "ensure", "STORY-014"]);
     assert_eq!(code, 0, "stderr was {err}");
     assert_eq!(out, "wt/STORY-014\n");
     assert!(p.exists("wt/STORY-014"), "the directory exists");
+    // The phase record stays in the main checkout: two copies gave the
+    // project two answers, and the Stop hook read the one the run had left.
     assert!(
-        p.exists("wt/STORY-014/.devforgeai/state.toml"),
-        "the state file is seeded"
+        !p.exists("wt/STORY-014/.devforgeai/state.toml"),
+        "the worktree carries no state file"
+    );
+    assert!(
+        p.state().worktree.iter().any(|w| w.story == "STORY-014"),
+        "the main checkout records it instead"
     );
 
     let branches = String::from_utf8_lossy(&git(&p, &["branch", "--list"]).stdout).to_string();
@@ -165,7 +199,7 @@ fn ensure_json_is_the_shape_the_spec_fixes() {
     assert_eq!(v["data"]["path"], "wt/STORY-014");
     assert_eq!(v["data"]["branch"], "story/STORY-014");
     assert_eq!(v["data"]["created"], true);
-    assert_eq!(v["data"]["state_seeded"], true);
+    assert_eq!(v["data"]["registered"], true);
 }
 
 #[test]
@@ -634,4 +668,325 @@ fn an_installed_hook_lets_a_clean_commit_through() {
         serde_json::json!(["pre-commit", "commit-msg"]),
         "both hooks are installed and ran"
     );
+}
+
+// --- one state file, in the main checkout ---------------------------------
+
+/// The worktree directory of `id`, created by `worktree ensure`.
+fn worktree_dir(p: &Project, id: &str) -> std::path::PathBuf {
+    p.root().join("wt").join(id)
+}
+
+#[test]
+fn ensure_registers_the_worktree_and_seeds_no_state_file() {
+    let p = repo();
+    let h = Home::new();
+    let (code, _, err) = run(&p, &h, &["worktree", "ensure", "STORY-014"]);
+    assert_eq!(code, 0, "stderr was {err}");
+
+    // A `state.toml` in the worktree is a second phase record: `phase set`
+    // inside the worktree updated the copy while the Stop hook, whose working
+    // directory is the session root, read the original.
+    assert!(
+        !p.exists("wt/STORY-014/.devforgeai/state.toml"),
+        "the worktree gets no state file of its own"
+    );
+
+    let s = p.state();
+    let e = s
+        .worktree
+        .iter()
+        .find(|w| w.story == "STORY-014")
+        .expect("the entry the main checkout keeps");
+    assert_eq!(e.path, "wt/STORY-014");
+    assert_eq!(e.branch, "story/STORY-014");
+    assert!(!e.created_at.is_empty());
+}
+
+#[test]
+fn ensure_is_idempotent_on_the_story() {
+    let p = repo();
+    let h = Home::new();
+    assert_eq!(run(&p, &h, &["worktree", "ensure", "STORY-014"]).0, 0);
+    assert_eq!(run(&p, &h, &["worktree", "ensure", "STORY-014"]).0, 0);
+
+    // A resume finds its own entry and refreshes it rather than adding a
+    // second one.
+    assert_eq!(
+        p.state()
+            .worktree
+            .iter()
+            .filter(|w| w.story == "STORY-014")
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn two_disjoint_stories_keep_two_entries() {
+    let p = repo();
+    let h = Home::new();
+    p.write(
+        ".devforgeai/stories/STORY-015.md",
+        &story("STORY-015", &["src/tax.rs"]),
+    );
+    assert_eq!(run(&p, &h, &["worktree", "ensure", "STORY-014"]).0, 0);
+    assert_eq!(run(&p, &h, &["worktree", "ensure", "STORY-015"]).0, 0);
+
+    // Non-overlapping stories are built in parallel; that is what the
+    // `DFA-E272` overlap refusal exists to police, so the registration is a
+    // table rather than one field.
+    let s = p.state();
+    assert_eq!(s.worktree.len(), 2, "{:?}", s.worktree);
+    assert!(s.worktree.iter().any(|w| w.story == "STORY-014"));
+    assert!(s.worktree.iter().any(|w| w.story == "STORY-015"));
+}
+
+#[test]
+fn remove_deletes_only_its_own_entry() {
+    let p = repo();
+    let h = Home::new();
+    p.write(
+        ".devforgeai/stories/STORY-015.md",
+        &story("STORY-015", &["src/tax.rs"]),
+    );
+    run(&p, &h, &["worktree", "ensure", "STORY-014"]);
+    run(&p, &h, &["worktree", "ensure", "STORY-015"]);
+
+    let (code, _, err) = run(&p, &h, &["worktree", "remove", "STORY-014"]);
+    assert_eq!(code, 0, "stderr was {err}");
+
+    let s = p.state();
+    assert!(
+        !s.worktree.iter().any(|w| w.story == "STORY-014"),
+        "the entry is gone"
+    );
+    assert!(
+        s.worktree.iter().any(|w| w.story == "STORY-015"),
+        "and the other story's worktree is untouched: {:?}",
+        s.worktree
+    );
+}
+
+#[test]
+fn a_command_from_inside_the_worktree_resolves_the_main_checkout() {
+    let p = repo();
+    let h = Home::new();
+    run(&p, &h, &["worktree", "ensure", "STORY-014"]);
+    let wt = worktree_dir(&p, "STORY-014");
+    assert!(
+        wt.join(".devforgeai").is_dir(),
+        "the worktree carries the tracked half of .devforgeai/"
+    );
+
+    // Run with no `--project`, from inside the worktree: discovery would stop
+    // at the worktree's own tracked `.devforgeai/` and read a project with no
+    // state file at all.
+    let mut c = Command::cargo_bin("devforgeai").expect("binary");
+    c.env("DEVFORGEAI_HOME", h.path());
+    c.env("USERPROFILE", h.path());
+    c.env("HOME", h.path());
+    for var in devforgeai::trust::SESSION_VARS {
+        c.env_remove(var);
+    }
+    let out = c
+        .current_dir(&wt)
+        .args(["--json", "phase", "set", "build", "--id", "STORY-014"])
+        .output()
+        .expect("run");
+
+    let v: serde_json::Value =
+        serde_json::from_str(String::from_utf8_lossy(&out.stdout).trim()).expect("envelope");
+    assert_eq!(v["exit"], 0, "{v}");
+    assert_eq!(
+        v["project"].as_str().map(|s| s.replace('\\', "/")),
+        Some(p.root().display().to_string().replace('\\', "/")),
+        "the project is the main checkout, not the worktree"
+    );
+
+    // The write landed in the main checkout's state, which is the file the
+    // Stop hook reads.
+    assert_eq!(p.state().current.phase, "build");
+    assert_eq!(p.state().active.build, "STORY-014");
+    assert!(
+        !p.exists("wt/STORY-014/.devforgeai/state.toml"),
+        "and nowhere else"
+    );
+}
+
+#[test]
+fn phase_set_from_a_worktree_switches_the_active_story() {
+    let p = repo();
+    let h = Home::new();
+    p.write(
+        ".devforgeai/stories/STORY-015.md",
+        &story("STORY-015", &["src/tax.rs"]),
+    );
+    run(&p, &h, &["worktree", "ensure", "STORY-014"]);
+    run(&p, &h, &["worktree", "ensure", "STORY-015"]);
+    run(&p, &h, &["phase", "set", "build", "--id", "STORY-014"]);
+    assert_eq!(p.state().active.build, "STORY-014");
+
+    // Switching directories switches the story, because the state both
+    // checkouts write is the same file.
+    let mut c = Command::cargo_bin("devforgeai").expect("binary");
+    c.env("DEVFORGEAI_HOME", h.path());
+    c.env("USERPROFILE", h.path());
+    c.env("HOME", h.path());
+    for var in devforgeai::trust::SESSION_VARS {
+        c.env_remove(var);
+    }
+    let out = c
+        .current_dir(worktree_dir(&p, "STORY-015"))
+        .args(["phase", "set", "build", "--id", "STORY-015"])
+        .output()
+        .expect("run");
+    assert!(out.status.success(), "{out:?}");
+
+    assert_eq!(p.state().active.build, "STORY-015");
+}
+
+#[test]
+fn a_cwd_outside_any_worktree_falls_back_to_normal_discovery() {
+    let p = repo();
+    let h = Home::new();
+    run(&p, &h, &["worktree", "ensure", "STORY-014"]);
+
+    // The main checkout is not a linked worktree, so discovery is unchanged.
+    let mut c = Command::cargo_bin("devforgeai").expect("binary");
+    c.env("DEVFORGEAI_HOME", h.path());
+    c.env("USERPROFILE", h.path());
+    c.env("HOME", h.path());
+    for var in devforgeai::trust::SESSION_VARS {
+        c.env_remove(var);
+    }
+    let out = c
+        .current_dir(p.root())
+        .args(["--json", "phase", "set", "build", "--id", "STORY-014"])
+        .output()
+        .expect("run");
+    let v: serde_json::Value =
+        serde_json::from_str(String::from_utf8_lossy(&out.stdout).trim()).expect("envelope");
+    assert_eq!(
+        v["project"].as_str().map(|s| s.replace('\\', "/")),
+        Some(p.root().display().to_string().replace('\\', "/"))
+    );
+
+    // And a directory that is no project at all still resolves to none.
+    let bare = tempfile::tempdir().expect("temp");
+    let mut c = Command::cargo_bin("devforgeai").expect("binary");
+    let out = c
+        .current_dir(bare.path())
+        .args(["doc", "load", "requirements", "-"])
+        .output()
+        .expect("run");
+    assert_eq!(out.status.code(), Some(3));
+}
+
+#[test]
+fn source_root_follows_the_active_story() {
+    let p = repo();
+    let h = Home::new();
+    p.write(
+        ".devforgeai/stories/STORY-015.md",
+        &story("STORY-015", &["src/tax.rs"]),
+    );
+    run(&p, &h, &["worktree", "ensure", "STORY-014"]);
+    run(&p, &h, &["worktree", "ensure", "STORY-015"]);
+
+    // `[active].build` is STORY-014, so the source is its worktree.
+    let mut ctx = p.ctx();
+    assert_eq!(ctx.source_root(), worktree_dir(&p, "STORY-014"));
+
+    run(&p, &h, &["phase", "set", "build", "--id", "STORY-015"]);
+    let mut ctx = p.ctx();
+    assert_eq!(ctx.source_root(), worktree_dir(&p, "STORY-015"));
+}
+
+#[test]
+fn source_root_falls_back_when_the_directory_is_gone() {
+    let p = repo();
+    let h = Home::new();
+    run(&p, &h, &["worktree", "ensure", "STORY-014"]);
+    run(&p, &h, &["phase", "set", "build", "--id", "STORY-014"]);
+
+    // Removed by hand, leaving the entry behind. Resolving source paths
+    // against a directory that is not there would report every file missing
+    // rather than reading the checkout that is.
+    std::fs::remove_dir_all(worktree_dir(&p, "STORY-014")).expect("rm");
+    let mut ctx = p.ctx();
+    assert_eq!(ctx.source_root(), p.root());
+}
+
+#[test]
+fn the_declared_set_check_reads_the_story_the_path_belongs_to() {
+    let p = repo();
+    let h = Home::new();
+    p.write(
+        ".devforgeai/stories/STORY-015.md",
+        &story("STORY-015", &["src/tax.rs"]),
+    );
+    run(&p, &h, &["worktree", "ensure", "STORY-014"]);
+    run(&p, &h, &["worktree", "ensure", "STORY-015"]);
+    // The session is on STORY-014.
+    run(&p, &h, &["phase", "set", "build", "--id", "STORY-014"]);
+
+    let mut ctx = p.ctx();
+    // A write into STORY-015's worktree is STORY-015's, however far
+    // `[active].build` has moved; `src/tax.rs` is its declared file.
+    let owned = worktree_dir(&p, "STORY-015").join("src").join("tax.rs");
+    assert_eq!(
+        ctx.worktree_story_of(&owned).as_deref(),
+        Some("STORY-015"),
+        "the path names its own story"
+    );
+
+    // A path in the main checkout belongs to no worktree, so the check falls
+    // back to the active story.
+    let plain = p.root().join("src").join("place_order.rs");
+    assert_eq!(ctx.worktree_story_of(&plain), None);
+}
+
+#[test]
+fn the_declared_set_diff_runs_in_the_worktree() {
+    let p = repo();
+    let h = Home::new();
+    run(&p, &h, &["worktree", "ensure", "STORY-014"]);
+    run(&p, &h, &["phase", "set", "build", "--id", "STORY-014"]);
+
+    // The story's work is committed on the worktree's branch. Running git in
+    // the main checkout compares the wrong branch and sees no change at all,
+    // so `files_declared` would measure nothing and pass every story.
+    let wt = worktree_dir(&p, "STORY-014");
+    std::fs::create_dir_all(wt.join("src")).expect("mkdir");
+    std::fs::write(wt.join("src").join("place_order.rs"), "fn place() {}\n").expect("write");
+    // An undeclared file beside it: the story declares `src/place_order.rs`
+    // alone, so this is what the check exists to catch.
+    std::fs::write(wt.join("src").join("sneaky.rs"), "fn sneaky() {}\n").expect("write");
+    let out = git_in(&wt, &["add", "-A"]);
+    assert!(out.status.success(), "{out:?}");
+    let out = git_in(&wt, &["commit", "-m", "STORY-014 work"]);
+    assert!(out.status.success(), "{out:?}");
+
+    let (code, _, err) = run(&p, &h, &["story", "files", "--diff", "--id", "STORY-014"]);
+
+    assert_eq!(code, 1, "the undeclared file is found: {err}");
+    assert!(err.contains("DFA-E239"), "stderr was {err}");
+    assert!(
+        err.contains("sneaky.rs"),
+        "the worktree's branch was diffed: {err}"
+    );
+}
+
+#[test]
+fn the_declared_set_diff_sees_nothing_from_the_main_checkout() {
+    let p = repo();
+    let h = Home::new();
+    run(&p, &h, &["worktree", "ensure", "STORY-014"]);
+    run(&p, &h, &["phase", "set", "build", "--id", "STORY-014"]);
+
+    // Nothing committed on the worktree's branch, so there is no change to
+    // report however much the main checkout holds.
+    let (code, _, err) = run(&p, &h, &["story", "files", "--diff", "--id", "STORY-014"]);
+    assert_eq!(code, 0, "stderr was {err}");
 }

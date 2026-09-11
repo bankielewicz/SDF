@@ -184,6 +184,15 @@ description = "Every requirement is complete, every actor resolves, every requir
   field = "accepted_by"
   message = "requirements.yaml is not accepted"
 
+  [[gate.check]]
+  kind = "verifier_pass"
+  id = "flow-integrity"
+  severity = "block"
+  on_fail = "send_back"
+  verifiers = ["flow-integrity-auditor"]
+  min_ratio = 1.0
+  message = "flow-integrity-auditor reports {value} of the brief's flows clean"
+
 [[gate]]
 phase = "constitute"
 requires = "discover"

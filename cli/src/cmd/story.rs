@@ -643,18 +643,22 @@ pub fn files(ctx: &mut Ctx, a: &StoryFilesArgs) -> Result<Outcome, CliError> {
 
 /// Test every changed path against the declared set.
 fn diff(ctx: &mut Ctx, s: &Story, base: Option<&str>) -> Result<Outcome, CliError> {
-    let root = ctx.root.clone();
-    git::require_work_tree(&root)?;
+    // The diff is of the story's own work, and during a worktree build that
+    // work is committed on the worktree's branch. Running git in the main
+    // checkout compares the wrong branch and reports no change at all, so
+    // `files_declared` would measure nothing and pass every story.
+    let source = ctx.source_root();
+    git::require_work_tree(&source)?;
     let base_ref = ctx.config()?.build.base_ref.clone();
     let base = match base {
         Some(b) => b.to_string(),
-        None => git::merge_base(&root, &base_ref)?,
+        None => git::merge_base(&source, &base_ref)?,
     };
 
     // A path under `.devforgeai/` is a framework artifact, not story work: the
     // PreToolUse map routes those to `doc validate` rather than to the
     // declared-set rule, and `gate check` writes one on every run.
-    let changes: Vec<crate::git::Change> = git::changed(&root, &base)?
+    let changes: Vec<crate::git::Change> = git::changed(&source, &base)?
         .into_iter()
         .filter(|c| !c.path.starts_with(".devforgeai/"))
         .collect();
@@ -695,7 +699,7 @@ fn diff(ctx: &mut Ctx, s: &Story, base: Option<&str>) -> Result<Outcome, CliErro
         }),
         warnings,
         degraded: ctx.degraded(),
-        project: root.display().to_string(),
+        project: ctx.root.display().to_string(),
         exit: Some(if undeclared == 0 { 0 } else { 1 }),
         raw: None,
         stderr: Vec::new(),

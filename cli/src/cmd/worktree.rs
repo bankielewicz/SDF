@@ -110,7 +110,12 @@ pub fn ensure(ctx: &mut Ctx, id: &str) -> Result<Outcome, CliError> {
     // Idempotent: an existing worktree on the matching branch is the answer.
     if let Some(e) = find(&root, &n.root, id)? {
         if e.branch == branch {
-            return Ok(done(ctx, id, &rel, &branch, false, false));
+            // Idempotent, but the record still has to be right: a run that
+            // finds the worktree already there is the common resume, and the
+            // main checkout must still know where the sources are.
+            drop_state_file(&abs);
+            let registered = register(ctx, id, &rel, &branch)?;
+            return Ok(done(ctx, id, &rel, &branch, false, registered));
         }
     }
 
@@ -150,33 +155,66 @@ pub fn ensure(ctx: &mut Ctx, id: &str) -> Result<Outcome, CliError> {
         ));
     }
 
-    let seeded = seed_state(&root, &abs);
-    Ok(done(ctx, id, &rel, &branch, true, seeded))
+    // `git worktree add` checks out whatever is tracked, and a project whose
+    // `.gitignore` never learned about `state.toml` has it committed. The rule
+    // is that one checkout holds the phase record, so the copy goes whether
+    // git put it there or a previous version of this command did.
+    drop_state_file(&abs);
+    let registered = register(ctx, id, &rel, &branch)?;
+    Ok(done(ctx, id, &rel, &branch, true, registered))
 }
 
-/// Copy the main checkout's `state.toml` into the worktree.
-fn seed_state(root: &Path, worktree: &Path) -> bool {
-    let src = project::dot(root).join(project::STATE);
-    let dst = project::dot(worktree).join(project::STATE);
-    let Ok(bytes) = std::fs::read(&src) else {
-        return false;
-    };
-    if let Some(parent) = dst.parent() {
-        if std::fs::create_dir_all(parent).is_err() {
-            return false;
+/// Remove a `state.toml` from a worktree, if one is there.
+fn drop_state_file(worktree: &Path) {
+    let stale = project::dot(worktree).join(project::STATE);
+    if stale.is_file() {
+        let _ = std::fs::remove_file(&stale);
+    }
+}
+
+/// Record the open worktree in the main checkout's `state.toml`.
+///
+/// The worktree gets no `state.toml` of its own. Copying one there gave the
+/// project two phase records: `phase set build` inside the worktree updated
+/// the copy, and the Stop hook, whose working directory is the session root,
+/// read the original and blocked on the phase the run had already left. One
+/// record, in the main checkout, and these two fields are how it knows where
+/// the sources went.
+fn register(ctx: &mut Ctx, id: &str, rel: &str, branch: &str) -> Result<bool, CliError> {
+    let now = crate::time::now_rfc3339();
+    {
+        let s = ctx.state_mut()?;
+        // Idempotent on the story: a resume finds its own entry and refreshes
+        // it rather than adding a second.
+        if let Some(e) = s.worktree.iter_mut().find(|w| w.story == id) {
+            e.path = rel.to_string();
+            e.branch = branch.to_string();
+        } else {
+            s.worktree.push(crate::state::WorktreeEntry {
+                story: id.to_string(),
+                path: rel.to_string(),
+                branch: branch.to_string(),
+                created_at: now,
+            });
+            s.worktree.sort_by(|a, b| a.story.cmp(&b.story));
         }
     }
-    project::atomic_write(&dst, &bytes).is_ok()
+    ctx.store_state()?;
+    Ok(true)
 }
 
-fn done(
-    ctx: &Ctx,
-    id: &str,
-    rel: &str,
-    branch: &str,
-    created: bool,
-    state_seeded: bool,
-) -> Outcome {
+/// Clear the open-worktree record.
+fn unregister(ctx: &mut Ctx, id: &str) -> Result<(), CliError> {
+    {
+        let s = ctx.state_mut()?;
+        // Only this story's entry: another story's worktree may be open beside
+        // it, which is the whole point of the table.
+        s.worktree.retain(|w| w.story != id);
+    }
+    ctx.store_state()
+}
+
+fn done(ctx: &Ctx, id: &str, rel: &str, branch: &str, created: bool, registered: bool) -> Outcome {
     Outcome {
         human: vec![rel.to_string()],
         data: serde_json::json!({
@@ -184,7 +222,7 @@ fn done(
             "path": rel,
             "branch": branch,
             "created": created,
-            "state_seeded": state_seeded,
+            "registered": registered,
         }),
         degraded: ctx.degraded(),
         project: ctx.root.display().to_string(),
@@ -212,11 +250,18 @@ pub fn list(ctx: &mut Ctx) -> Result<Outcome, CliError> {
     git::require_work_tree(&root)?;
     let n = naming(ctx)?;
 
+    // `git worktree list` is the truth about what exists on disk; the
+    // `[[worktree]]` table is the truth about which story each was opened for
+    // and when. A directory git knows and state does not is still listed, so a
+    // worktree made by hand is visible rather than hidden.
+    let registered: Vec<crate::state::WorktreeEntry> =
+        ctx.state().map(|s| s.worktree.clone()).unwrap_or_default();
     let mut human = Vec::new();
     let mut rows = Vec::new();
     for e in entries(&root, &n.root)? {
         let dirty = is_dirty(&e.path);
         let ahead = ahead_count(&e.path, &n.base_ref);
+        let entry = registered.iter().find(|w| w.story == e.id);
         human.push(format!(
             "{}  {}  {}  {}  {ahead} ahead",
             e.id,
@@ -230,6 +275,8 @@ pub fn list(ctx: &mut Ctx) -> Result<Outcome, CliError> {
             "branch": e.branch,
             "dirty": dirty,
             "ahead": ahead,
+            "registered": entry.is_some(),
+            "created_at": entry.map(|w| w.created_at.clone()).unwrap_or_default(),
         }));
     }
 
@@ -301,9 +348,8 @@ pub fn remove(ctx: &mut Ctx, id: &str, force: bool) -> Result<Outcome, CliError>
         ));
     }
 
-    // The refusal above is this binary's, and it is the one that governs: git
-    // would refuse again over the `state.toml` that `ensure` seeded, which is
-    // the binary's own bookkeeping rather than the author's work.
+    // The refusal above is this binary's, and it is the one that governs.
+    unregister(ctx, id)?;
     let path = e.path.to_string_lossy().to_string();
     let out = git::run(&root, &["worktree", "remove", "--force", &path])?;
     if !out.ok() {

@@ -2683,3 +2683,150 @@ fn a_long_check_id_does_not_run_into_its_kind() {
         );
     }
 }
+
+// -------------------------------------------------- the source tree vs the root
+//
+// Build runs inside a registered worktree while `state.toml` stays in the main
+// checkout. A command check run at the root during a worktree build tests the
+// wrong tree, so the two halves of a gate read different directories: commands
+// and source paths belong to the worktree, `.devforgeai/` documents to the
+// project root.
+
+/// Register `dir`, a path relative to the project root, as the open worktree of
+/// the active build story.
+///
+/// `state.toml` stays in the main checkout and carries one `[[worktree]]` entry
+/// per story; `[active].build` names the one the current run is on, which is
+/// the pair `Ctx::source_root` reads.
+fn register_worktree(p: &Project, dir: &str) {
+    std::fs::create_dir_all(p.root().join(dir)).expect("mkdir");
+    let mut s = p.state();
+    s.active.build = "STORY-014".to_string();
+    s.worktree = vec![devforgeai::state::WorktreeEntry {
+        story: "STORY-014".to_string(),
+        path: dir.to_string(),
+        branch: "story/STORY-014".to_string(),
+        created_at: "2026-09-10T14:02:11Z".to_string(),
+    }];
+    p.write_state(&s);
+}
+
+/// A `tests_pass` check whose command writes a marker in its working directory.
+const MARKER_TESTS: &str = r#"  [[gate.check]]
+  kind = "tests_pass"
+  id = "build-tests"
+  stacks = []
+"#;
+
+fn with_marker_command(p: &Project) {
+    p.write_config(&devforgeai::config::Config {
+        degraded: false,
+        stack: vec![devforgeai::config::Stack {
+            id: "rust".into(),
+            test_command: "echo ran > marker.txt".into(),
+            timeout_secs: 60,
+            ..Default::default()
+        }],
+        generated_at: "2026-09-10T14:02:11Z".into(),
+        ..Default::default()
+    });
+}
+
+#[test]
+fn a_command_check_runs_in_the_registered_worktree() {
+    let p = seeded(MARKER_TESTS);
+    with_marker_command(&p);
+    register_worktree(&p, "wt");
+
+    let out = run(&p);
+    assert_eq!(status_of(&out, "build-tests"), "pass");
+    assert!(
+        p.exists("wt/marker.txt"),
+        "the command ran with the worktree as its working directory"
+    );
+    assert!(
+        !p.exists("marker.txt"),
+        "and not at the project root, which holds state.toml and nothing of the build"
+    );
+}
+
+#[test]
+fn a_command_check_runs_at_the_root_when_no_worktree_is_registered() {
+    // The control: with no registration the source tree is the project root,
+    // which is every run outside Build.
+    let p = seeded(MARKER_TESTS);
+    with_marker_command(&p);
+
+    let out = run(&p);
+    assert_eq!(status_of(&out, "build-tests"), "pass");
+    assert!(p.exists("marker.txt"));
+}
+
+#[test]
+fn a_stale_worktree_registration_falls_back_to_the_root() {
+    // A registration naming a directory that has been removed is stale, not a
+    // redirect: running nowhere is worse than running at the root.
+    let p = seeded(MARKER_TESTS);
+    with_marker_command(&p);
+    register_worktree(&p, "wt");
+    std::fs::remove_dir_all(p.root().join("wt")).expect("rmdir");
+
+    let out = run(&p);
+    assert_eq!(status_of(&out, "build-tests"), "pass");
+    assert!(p.exists("marker.txt"));
+}
+
+#[test]
+fn a_document_check_still_reads_the_project_root_during_a_worktree_build() {
+    // The other half of the split: `explore/decision.yaml` lives under the
+    // root's `.devforgeai/` whatever the build is doing, and the baseline
+    // checks of this gate read it.
+    let p = seeded(MARKER_TESTS);
+    with_marker_command(&p);
+    register_worktree(&p, "wt");
+    // A decoy in the worktree, which no document check may reach.
+    p.write(
+        "wt/.devforgeai/explore/decision.yaml",
+        &common::decision("IDEA-003", "kill"),
+    );
+
+    let out = run(&p);
+    assert_eq!(status_of(&out, "baseline-exists"), "pass");
+    assert_eq!(status_of(&out, "baseline-enum"), "pass");
+    assert_eq!(
+        out.data["checks"][1]["evidence"]["value"], "promote",
+        "the root's decision was read, not the worktree's decoy"
+    );
+}
+
+#[test]
+fn a_leading_dot_path_resolves_against_the_worktree() {
+    // Spec 245 gives a leading-dot path the project root, which during a
+    // worktree build is the worktree; a `.devforgeai/`-relative path does not
+    // move.
+    let p = seeded(
+        r#"  [[gate.check]]
+  kind = "file_exists"
+  id = "prototype-present"
+  paths = [".explore-prototype/sketch.md"]
+  min_count = 1
+"#,
+    );
+    register_worktree(&p, "wt");
+    p.write("wt/.explore-prototype/sketch.md", "# Sketch\n");
+    assert_eq!(status_of(&run(&p), "prototype-present"), "pass");
+
+    // The same file at the root does not satisfy it while a worktree is
+    // registered.
+    let p = seeded(
+        r#"  [[gate.check]]
+  kind = "file_exists"
+  id = "prototype-present"
+  paths = [".explore-prototype/sketch.md"]
+  min_count = 1
+"#,
+    );
+    register_worktree(&p, "wt");
+    p.write(".explore-prototype/sketch.md", "# Sketch\n");
+    assert_eq!(status_of(&run(&p), "prototype-present"), "fail");
+}
